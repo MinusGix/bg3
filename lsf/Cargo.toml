@@ -1,0 +1,13 @@
+[package]
+name = "lsf"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+binrw = "0.11.2"
+flate2 = { version = "1.0.26", default-features = false, features = ["miniz_oxide"] }
+lz4_flex = "0.11.1"
+quick-xml = { version = "0.30.0", features = ["serialize"] }
+serde = { version = "1.0.183", features = ["derive"] }

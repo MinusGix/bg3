@@ -1,0 +1,17 @@
+[package]
+name = "mod-mgr"
+version = "0.1.0"
+edition = "2021"
+authors = ["MinusGix"]
+description = "A reimplementation of LaughingLeader's BG3 Mod Manager in Rust"
+resolver = "2"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+clap = { version = "4.3.21", features = ["derive"] }
+floem = { git = "https://github.com/lapce/floem", rev = "57865513fc0538357ef7e0b23283423443234b9c" }
+# TODO: get rid of it
+im = "15.1.0"
+# floem = { path = "/run/media/minus/Kairos/Code/Rust/floem/" }
+mod-mgr-lib = { path = "../mod-mgr-lib" }
