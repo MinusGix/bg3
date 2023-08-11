@@ -63,28 +63,3 @@ pub fn form_item<V: View + 'static>(
             .min_height_px(32.0)
     })
 }
-
-// // TODO: move this to floem
-//    Actually this seems to have the issue of item iterator not having a lifetime
-// /// A virtual list vector impl for arrays of length N.
-// #[derive(Debug, Clone)]
-// pub struct VListArr<T, const N: usize>(pub [T; N]);
-// impl<T: Clone + 'static, const N: usize> VirtualListVector<T> for VListArr<T, N> {
-//     type ItemIterator = std::iter::Cloned<std::slice::Iter<'static, T>>;
-
-//     fn total_len(&self) -> usize {
-//         self.0.len()
-//     }
-
-//     fn slice(&mut self, range: std::ops::Range<usize>) -> Self::ItemIterator {
-//         self.0[range].iter().cloned()
-//     }
-// }
-// impl<T, const N: usize> IntoIterator for VListArr<T, N> {
-//     type Item = T;
-//     type IntoIter = std::array::IntoIter<T, N>;
-
-//     fn into_iter(self) -> Self::IntoIter {
-//         self.0.into_iter()
-//     }
-// }

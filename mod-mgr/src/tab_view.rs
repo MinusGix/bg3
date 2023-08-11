@@ -6,7 +6,7 @@ use floem::{
     style::{CursorStyle, Style},
     view::View,
     views::{
-        container, container_box, label, stack, tab, virtual_list, Decorators, Tab,
+        container, container_box, empty, label, list, stack, tab, virtual_list, Decorators, Tab,
         VirtualListDirection, VirtualListItemSize, VirtualListVector,
     },
 };
@@ -21,11 +21,15 @@ use floem::{
 
 #[derive(Debug, Clone)]
 pub struct TabSwitcherStyle {
+    pub separator_background: Color,
+    pub button_area_background: Color,
     pub button: TabButtonStyle,
 }
 impl Default for TabSwitcherStyle {
     fn default() -> Self {
         Self {
+            separator_background: Color::WHITE,
+            button_area_background: Color::WHITE,
             button: TabButtonStyle::default(),
         }
     }
@@ -33,16 +37,32 @@ impl Default for TabSwitcherStyle {
 
 #[derive(Debug, Clone, Copy)]
 pub struct TabButtonStyle {
+    pub font_size: f32,
+
+    pub color: Color,
+    pub active_color: Color,
+
     pub border_width: f32,
     pub border_width_focus_increase: f32,
     pub border_color: Color,
+
+    pub background_color: Color,
+    pub active_background_color: Color,
+
+    pub active_padding_top_increase: f32,
 }
 impl Default for TabButtonStyle {
     fn default() -> Self {
         Self {
-            border_width: 1.0,
+            font_size: 16.0,
+            color: Color::BLACK,
+            active_color: Color::BLACK,
+            border_width: 0.8,
             border_width_focus_increase: 0.2,
             border_color: Color::LIGHT_GRAY,
+            background_color: Color::WHITE,
+            active_background_color: Color::LIGHT_GRAY,
+            active_padding_top_increase: 0.2,
         }
     }
 }
@@ -53,6 +73,8 @@ pub fn horiz_tab_switcher<T, IF, I, KF, K, VF, V>(
     key_fn: KF,
     view_fn: VF,
     TabSwitcherStyle {
+        separator_background,
+        button_area_background,
         button: button_style,
     }: TabSwitcherStyle,
 ) -> impl View
@@ -67,8 +89,6 @@ where
 {
     let each_fn = Arc::new(each_fn);
     let key_fn = Arc::new(key_fn);
-    let values = each_fn().into_iter().collect::<Vec<_>>();
-    println!("Values: {values:?}");
 
     stack(move || {
         // TODO: Can we get rid of these stupid clones?
@@ -76,66 +96,90 @@ where
         let each_fn3 = each_fn.clone();
         let key_fn2 = key_fn.clone();
         (
-            // container(move || {
-            virtual_list(
-                VirtualListDirection::Horizontal,
-                // TODO
-                VirtualListItemSize::Fn(Box::new(|x| 12.0)),
-                move || each_fn(),
-                move |x| key_fn(x),
-                move |x| {
-                    let each_fn = each_fn3.clone();
-                    tab_button(button_style, x.to_string()).on_click(move |_| {
-                        let x = &x;
-                        let each_fn = each_fn.clone();
+            container(move || {
+                list(
+                    move || each_fn(),
+                    move |x| key_fn(x),
+                    move |x| {
+                        let each_fn = each_fn3.clone();
+                        let x_string = x.to_string();
+                        let idx = each_fn().into_iter().position(|y| x == y).unwrap_or(0);
+                        let is_active = move || active.get() == idx;
+                        tab_button(x_string, is_active, button_style).on_click(move |_| {
+                            active.update(move |v| {
+                                *v = idx;
+                            });
 
-                        // TODO: should we just have a separate function to map idx <-> T??
-                        active.update(move |v| {
-                            *v = each_fn().into_iter().position(|y| x == &y).unwrap_or(0);
-                        });
-
-                        true
-                    })
-                },
-            )
-            .style(|| Style::BASE.flex_row()),
-            // }),
+                            true
+                        })
+                    },
+                )
+            })
+            .style(move || Style::BASE.background(button_area_background)),
+            container(|| empty()).style(move || {
+                Style::BASE
+                    .width_pct(100.0)
+                    .height_px(3.0)
+                    .background(separator_background)
+            }),
             tab(
                 move || active.get(),
                 move || each_fn2(),
                 move |x| key_fn2(x),
                 view_fn,
-            ),
+            )
+            .style(|| Style::BASE.min_height_px(500.0)),
         )
     })
-    .style(|| Style::BASE.flex_col())
 }
 
 fn tab_button(
+    text: String,
+    is_active: impl Fn() -> bool + 'static + Copy,
     TabButtonStyle {
+        font_size,
+        color,
+        active_color,
         border_width,
         border_width_focus_increase,
         border_color,
+        background_color,
+        active_background_color,
+        active_padding_top_increase,
     }: TabButtonStyle,
-    text: String,
 ) -> impl View {
-    // TODO: different background color for active tab?
+    // TODO: different background color for if you're hovering over it? Slight shift in border?
+    // TODO: slightly curved outwards border at bottom somehow
     container(move || {
         label(move || text.clone()).style(move || {
             Style::BASE
-                .font_size(14.0)
-                // .flex_col()
-                // .width_pct(32.0)
-                // .height_pct(32.0)
-                .border_color(border_color)
+                .font_size(font_size)
+                .padding_horiz_px(10.0)
+                .items_center()
+                .color(color)
+                .apply_if(is_active(), |s| s.color(active_color))
         })
     })
     .keyboard_navigatable()
-    .style(move || Style::BASE.border(border_width))
+    .style(move || {
+        // TODO: intended padding logic doesn't work
+        Style::BASE
+            .border(border_width)
+            .border_color(border_color)
+            .height_px(font_size * 1.2 + active_padding_top_increase * 2.0)
+            .padding_horiz_px(3.0)
+            .padding_vert_px(2.0)
+            .background(background_color)
+            .apply_if(is_active(), |s| s.background(active_background_color))
+            .apply_if(is_active(), |s| {
+                s.padding_top_px(2.0 + active_padding_top_increase * 2.0)
+            })
+    })
     .focus_visible_style(move || {
         Style::BASE
             .border(border_width + border_width_focus_increase)
             .border_color(Color::BLUE)
+            .flex_row()
     })
     .hover_style(|| {
         // TODO: change background color?

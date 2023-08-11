@@ -2,6 +2,12 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
+/// Configuration items.  
+/// If you add a configuration item, then there is several places that need to be modified.  
+/// - The default implementation below.
+/// - `mod-mgr`
+///   - `settings_view.rs` has `save_config` and various structures for holding signals for the
+///     configuration items that are changeable in the manager.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
     // TODO: give the paths decent default values on the common platforms.
@@ -29,6 +35,10 @@ pub struct Config {
     pub launch: LaunchConfig,
 }
 impl Config {
+    pub fn load() -> std::io::Result<Config> {
+        todo!()
+    }
+
     /// Returns "" if the path is None
     pub fn game_data_path_str(&self) -> &str {
         self.game_data_path.as_os_str().to_str().unwrap_or_default()
@@ -47,6 +57,10 @@ impl Config {
             .as_os_str()
             .to_str()
             .unwrap_or_default()
+    }
+
+    pub fn save(&self) -> std::io::Result<()> {
+        todo!()
     }
 }
 impl Default for Config {

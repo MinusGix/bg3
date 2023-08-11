@@ -5,6 +5,7 @@ pub mod view_util;
 use clap::Parser;
 use floem::{
     id::WindowId,
+    peniko::Color,
     reactive::{create_rw_signal, RwSignal},
     style::Style,
     view::View,
@@ -30,6 +31,19 @@ fn main() {
 
     floem::launch(root_view)
 }
+
+/// Headers/footers
+pub const DARK0_BG: Color = Color::rgb8(42, 43, 52);
+/// Inputs
+pub const DARK1_BG: Color = Color::rgb8(51, 51, 64);
+/// Main background
+pub const DARK2_BG: Color = Color::rgb8(61, 61, 76);
+/// Selected option background
+pub const DARK3_BG: Color = Color::rgb8(76, 79, 98);
+/// Text in the dark theme
+pub const DARK_TEXT: Color = Color::rgb8(209, 209, 212);
+
+// TODO: light theme
 
 fn app_view(config: Config) -> impl View {
     let config = create_rw_signal(config);
