@@ -12,6 +12,7 @@ The primary goal for this is to be able to run it on Linux (and MacOS?) devices,
     - At worst, we can implement some weird pagination.
   - Are the various sizes good or at least decent?
 
+- Scrolling in the settings for small height lets bottom options get cut off.                                                                                                                                                                                                                                                                                                                                                                                                                        
 
 ## Notable Missing Features
 - Basically everything

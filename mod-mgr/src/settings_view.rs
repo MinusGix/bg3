@@ -14,7 +14,7 @@ use mod_mgr_lib::config::Config;
 
 use crate::{
     tab_view::{self, TabButtonStyle, TabSwitcherStyle},
-    view_util::{auto_checkbox, form, form_item},
+    view_util::{auto_checkbox, button, form, form_item},
     DARK0_BG, DARK2_BG, DARK3_BG, DARK_TEXT,
 };
 
@@ -122,6 +122,8 @@ pub fn settings_view(config: RwSignal<Config>) -> impl View {
                     .color(DARK_TEXT)
                     .width_pct(100.0)
                     .height_pct(80.0)
+                // .max_height_pct(95.0)
+                // .min_height_pct(80.0)
             }),
             footer,
         )
@@ -159,6 +161,8 @@ fn settings_view_header(
     .style(|| {
         Style::BASE
             .size_pct(100.0, 10.0)
+            // .min_height_px(32.0)
+            // .max_height_px(60.0)
             .width_pct(100.0)
             .background(DARK0_BG)
             .items_start()
@@ -173,35 +177,18 @@ fn settings_view_footer(
 ) -> impl View {
     container(|| {
         // TODO: decent button view?
-        label(|| "Save".to_string())
-            .on_click(move |_| {
-                save_config(config, general.clone(), keyboard.clone());
+        button("Save", move || {
+            save_config(config, general.clone(), keyboard.clone());
 
-                true
-            })
-            .style(|| {
-                Style::BASE
-                    .flex_col()
-                    .padding_horiz_px(6.0)
-                    .padding_vert_px(1.0)
-                    .font_size(14.0)
-                    .background(DARK2_BG)
-                    .color(DARK_TEXT)
-                    .justify_center()
-                    .margin_right_pct(20.0)
-                    .margin_top_pct(2.0)
-                    .min_width_px(80.0)
-                    .border(0.6)
-                    .border_color(DARK3_BG)
-            })
-            .hover_style(|| {
-                // TODO: change background color?
-                Style::BASE.cursor(CursorStyle::Pointer)
-            })
+            true
+        })
+        .style(|| Style::BASE.margin_right_pct(20.0).margin_top_pct(2.0))
     })
     .style(|| {
         Style::BASE
             .size_pct(100.0, 10.0)
+            // .min_height_px(40.0)
+            // .max_height_px(60.0)
             .background(DARK0_BG)
             .items_end()
             .flex_col()
@@ -281,9 +268,9 @@ fn general_settings_view(g: GeneralSettingData) -> impl View {
                 )
             })
         })
-        .style(|| Style::BASE.size_pct(100.0, 100.0).flex_col())
+        .style(|| Style::BASE.size_pct(100.0, 100.0))
     })
-    .style(|| Style::BASE.size_pct(100.0, 100.0).flex_col())
+    .style(|| Style::BASE.size_pct(100.0, 100.0))
 }
 
 #[derive(Debug, Clone)]
