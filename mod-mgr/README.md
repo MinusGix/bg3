@@ -1,9 +1,10 @@
 # BG3 Rust Mod Manager
-This is a reimplementation of LaughingLeader's [BGModManager](https://github.com/LaughingLeader/BG3ModManager) in RUst.  
+This is a reimplementation of LaughingLeader's [BG3ModManager](https://github.com/LaughingLeader/BG3ModManager) in RUst.  
 The primary goal for this is to be able to run it on Linux (and MacOS?) devices, since BG3ModManager uses WPF and I've struggled to get it running under wine.
 
 ## Implemented features
-- Basic settings UI
+- Settings UI
+- Basic table ui
 
 ## TODO
 - SteamDeck
@@ -17,3 +18,12 @@ The primary goal for this is to be able to run it on Linux (and MacOS?) devices,
 ## Notable Missing Features
 - Basically everything
 - Screen reader support
+- Saving settings
+- Profile
+- Actually loading load orders and exporting them
+- Launching the game
+
+## Credits
+- LaughingLeader's [BG3ModManager](https://github.com/LaughingLeader/BG3ModManager) in RUst.  
+- Jakub Jankiewicz's Clarity Icons (CC-3.0)
+  - Manually modified some of them to be light for the dark background. UI lib doesn't provide a trivial way to invert it.

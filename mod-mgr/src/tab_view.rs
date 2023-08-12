@@ -79,7 +79,7 @@ pub fn horiz_tab_switcher<T, IF, I, KF, K, VF, V>(
     }: TabSwitcherStyle,
 ) -> impl View
 where
-    T: 'static + ToString + PartialEq + std::fmt::Debug,
+    T: 'static + ToString + PartialEq,
     IF: Fn() -> I + 'static,
     I: IntoIterator<Item = T> + VirtualListVector<T>,
     KF: Fn(&T) -> K + 'static,

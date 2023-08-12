@@ -14,7 +14,7 @@ use mod_mgr_lib::config::Config;
 
 use crate::{
     tab_view::{self, TabButtonStyle, TabSwitcherStyle},
-    view_util::{auto_checkbox, button, form, form_item},
+    view_util::{auto_checkbox, button, form, form_item, save_icon, simple_form_input, svg_button},
     DARK0_BG, DARK2_BG, DARK3_BG, DARK_TEXT,
 };
 
@@ -134,10 +134,6 @@ pub fn settings_view(config: RwSignal<Config>) -> impl View {
     // TODO: close button at top?
 }
 
-fn save_icon() -> String {
-    include_str!("../assets/save.svg").to_string()
-}
-
 fn settings_view_header(
     config: RwSignal<Config>,
     general: GeneralSettingData,
@@ -145,18 +141,12 @@ fn settings_view_header(
 ) -> impl View {
     stack(|| {
         // TODO: There's another button in the view. What does it do?
-        (svg(save_icon)
-            .on_click(move |_| {
-                // TODO: show that it has been saving by flashing the button or showing a checkmark or something.
-                save_config(config, general.clone(), keyboard.clone());
+        (svg_button(save_icon(), move || {
+            // TODO: show that it has been saving by flashing the button or showing a checkmark or something.
+            save_config(config, general.clone(), keyboard.clone());
 
-                true
-            })
-            .style(|| Style::BASE.flex_col().size_px(32.0, 32.0))
-            .hover_style(|| {
-                // TODO: change background color?
-                Style::BASE.cursor(CursorStyle::Pointer)
-            }),)
+            true
+        }),)
     })
     .style(|| {
         Style::BASE
@@ -234,13 +224,7 @@ fn general_settings_view(g: GeneralSettingData) -> impl View {
         form_item(text.to_string(), LABEL_WIDTH, move || auto_checkbox(signal))
     }
 
-    fn inp(text: &str, signal: RwSignal<String>) -> impl View {
-        form_item(text.to_string(), LABEL_WIDTH, move || {
-            text_input(signal)
-                .style(|| Style::BASE.border(0.5).height_px(24.0))
-                .keyboard_navigatable()
-        })
-    }
+    let inp = |x, y| simple_form_input(x, y, LABEL_WIDTH, 24.0);
 
     container(|| {
         scroll(|| {

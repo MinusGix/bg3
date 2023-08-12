@@ -5,10 +5,18 @@ use floem::{
     style::{CursorStyle, Style},
     view::View,
     view_tuple::ViewTuple,
-    views::{checkbox, container, label, stack, Decorators, VirtualListVector},
+    views::{checkbox, container, label, stack, svg, text_input, Decorators, VirtualListVector},
 };
 
 use crate::{DARK2_BG, DARK3_BG, DARK_TEXT};
+
+pub fn save_icon() -> String {
+    include_str!("../assets/document-save-light.svg").to_string()
+}
+
+pub fn save_as_icon() -> String {
+    include_str!("../assets/document-save-as-light.svg").to_string()
+}
 
 /// Checkbox that automatically applies the signal on click
 pub fn auto_checkbox(signal: RwSignal<bool>) -> impl View {
@@ -66,6 +74,31 @@ pub fn form_item<V: View + 'static>(
     })
 }
 
+// TODO: make border nicer
+// TODO: theming
+// TODO: tooltip
+// TODO: center text correctly
+// TODO: that weird background text that I forget the name of
+pub fn simple_form_input(
+    text: &str,
+    signal: RwSignal<String>,
+    width: f32,
+    height: f32,
+) -> impl View {
+    form_item(text.to_string(), width, move || {
+        // TODO: A bit more padding might be nice.
+        text_input(signal)
+            .style(move || {
+                Style::BASE
+                    .border(0.5)
+                    .height_px(height)
+                    .border_color(DARK_TEXT)
+            })
+            .keyboard_navigatable()
+    })
+}
+
+// TODO: tooltip
 /// A simple button view. Intended to look relatively native.  
 /// The callback should return true if the event was handled and it should not be propagated further.
 pub fn button(text: impl Into<String>, on_click: impl Fn() -> bool + 'static) -> impl View {
@@ -86,6 +119,20 @@ pub fn button(text: impl Into<String>, on_click: impl Fn() -> bool + 'static) ->
                     .border(0.6)
                     .border_color(DARK3_BG)
             })
+            .hover_style(|| {
+                // TODO: change background color?
+                Style::BASE.cursor(CursorStyle::Pointer)
+            })
+    })
+}
+
+// TODO: tooltip
+pub fn svg_button(svg_v: impl Into<String>, on_click: impl Fn() -> bool + 'static) -> impl View {
+    let svg_v = svg_v.into();
+    container(|| {
+        svg(move || svg_v.clone())
+            .on_click(move |_| on_click())
+            .style(|| Style::BASE.min_size_px(32.0, 32.0))
             .hover_style(|| {
                 // TODO: change background color?
                 Style::BASE.cursor(CursorStyle::Pointer)
