@@ -13,7 +13,9 @@ The primary goal for this is to be able to run it on Linux (and MacOS?) devices,
     - At worst, we can implement some weird pagination.
   - Are the various sizes good or at least decent?
 
-- Scrolling in the settings for small height lets bottom options get cut off.                                                                                                                                                                                                                                                                                                                                                                                                                        
+- Scrolling in the settings for small height lets bottom options get cut off.                                                                                                                                               
+
+- I think some pieces of the UI could be moved to the lib instead.
 
 ## Notable Missing Features
 - Basically everything
@@ -23,7 +25,9 @@ The primary goal for this is to be able to run it on Linux (and MacOS?) devices,
 - Actually loading load orders and exporting them
 - Launching the game
 
+- Gamemaster code, though that isn't in BG3 yet.
+
 ## Credits
 - LaughingLeader's [BG3ModManager](https://github.com/LaughingLeader/BG3ModManager) in RUst.  
-- Jakub Jankiewicz's Clarity Icons (CC-3.0)
+- Clarity Icons (CC-3.0)
   - Manually modified some of them to be light for the dark background. UI lib doesn't provide a trivial way to invert it.

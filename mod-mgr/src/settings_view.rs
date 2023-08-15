@@ -15,7 +15,7 @@ use mod_mgr_lib::config::Config;
 use crate::{
     tab_view::{self, TabButtonStyle, TabSwitcherStyle},
     view_util::{auto_checkbox, button, form, form_item, save_icon, simple_form_input, svg_button},
-    DARK0_BG, DARK2_BG, DARK3_BG, DARK_TEXT,
+    MainData, DARK0_BG, DARK2_BG, DARK3_BG, DARK_TEXT,
 };
 
 fn save_config(
@@ -69,7 +69,9 @@ impl Display for SettingTab {
     }
 }
 
-pub fn settings_view(config: RwSignal<Config>) -> impl View {
+pub fn settings_view(main_data: MainData) -> impl View {
+    let config = main_data.config.clone();
+
     let tabs = im::Vector::from_iter(
         [
             SettingTab::General,

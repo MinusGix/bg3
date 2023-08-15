@@ -5,7 +5,7 @@ use floem::{
     style::{CursorStyle, Style},
     view::View,
     view_tuple::ViewTuple,
-    views::{checkbox, container, label, stack, svg, text_input, Decorators, VirtualListVector},
+    views::{checkbox, container, label, stack, svg, text_input, Container, Decorators},
 };
 
 use crate::{DARK2_BG, DARK3_BG, DARK_TEXT};
@@ -16,6 +16,18 @@ pub fn save_icon() -> String {
 
 pub fn save_as_icon() -> String {
     include_str!("../assets/document-save-as-light.svg").to_string()
+}
+
+pub fn forward_icon() -> String {
+    include_str!("../assets/forward-light.svg").to_string()
+}
+
+pub fn hard_disk_icon() -> String {
+    include_str!("../assets/drive-harddisk-light.svg").to_string()
+}
+
+pub fn settings_icon() -> String {
+    include_str!("../assets/settings-light.svg").to_string()
 }
 
 /// Checkbox that automatically applies the signal on click
@@ -90,8 +102,9 @@ pub fn simple_form_input(
         text_input(signal)
             .style(move || {
                 Style::BASE
-                    .border(0.5)
+                    .border(0.3)
                     .height_px(height)
+                    .inset_px(2.0)
                     .border_color(DARK_TEXT)
             })
             .keyboard_navigatable()
@@ -103,39 +116,35 @@ pub fn simple_form_input(
 /// The callback should return true if the event was handled and it should not be propagated further.
 pub fn button(text: impl Into<String>, on_click: impl Fn() -> bool + 'static) -> impl View {
     let text = text.into();
-    container(move || {
-        label(move || text.clone())
-            .on_click(move |_| on_click())
-            .style(|| {
-                Style::BASE
-                    .flex_col()
-                    .padding_horiz_px(6.0)
-                    .padding_vert_px(1.0)
-                    .font_size(14.0)
-                    .background(DARK2_BG)
-                    .color(DARK_TEXT)
-                    .justify_center()
-                    .min_width_px(80.0)
-                    .border(0.6)
-                    .border_color(DARK3_BG)
-            })
-            .hover_style(|| {
-                // TODO: change background color?
-                Style::BASE.cursor(CursorStyle::Pointer)
-            })
-    })
+    label(move || text.clone())
+        .on_click(move |_| on_click())
+        .base_style(|| {
+            Style::BASE
+                .flex_col()
+                .padding_horiz_px(6.0)
+                .padding_vert_px(1.0)
+                .font_size(14.0)
+                .background(DARK2_BG)
+                .color(DARK_TEXT)
+                .justify_center()
+                .min_width_px(80.0)
+                .border(0.6)
+                .border_color(DARK3_BG)
+        })
+        .hover_style(|| {
+            // TODO: change background color?
+            Style::BASE.cursor(CursorStyle::Pointer)
+        })
 }
 
 // TODO: tooltip
 pub fn svg_button(svg_v: impl Into<String>, on_click: impl Fn() -> bool + 'static) -> impl View {
     let svg_v = svg_v.into();
-    container(|| {
-        svg(move || svg_v.clone())
-            .on_click(move |_| on_click())
-            .style(|| Style::BASE.min_size_px(32.0, 32.0))
-            .hover_style(|| {
-                // TODO: change background color?
-                Style::BASE.cursor(CursorStyle::Pointer)
-            })
-    })
+    svg(move || svg_v.clone())
+        .on_click(move |_| on_click())
+        .base_style(|| Style::BASE.min_size_px(32.0, 32.0))
+        .hover_style(|| {
+            // TODO: change background color?
+            Style::BASE.cursor(CursorStyle::Pointer)
+        })
 }

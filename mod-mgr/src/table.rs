@@ -51,30 +51,28 @@ where
     let header_view_fn = Arc::new(header_view_fn);
     let widths_fn = Arc::new(widths_fn);
 
-    container(|| {
-        stack(move || {
-            let header_fn2 = header_fn.clone();
-            let header_key_fn2 = header_key_fn.clone();
-            let widths_fn2 = widths_fn.clone();
-            (
-                table_header(
-                    move || header_fn(),
-                    move |x| header_key_fn(x),
-                    move |x| header_view_fn(x),
-                    move |x| widths_fn(x),
-                ),
-                table_rows(
-                    move || header_fn2(),
-                    move |x| header_key_fn2(x),
-                    move || rows_fn(),
-                    move |x| row_key_fn(x),
-                    move |x, y| row_view_fn(x, y),
-                    move |x| widths_fn2(x),
-                ),
-            )
-        })
-        .style(|| Style::BASE.flex_col())
+    stack(move || {
+        let header_fn2 = header_fn.clone();
+        let header_key_fn2 = header_key_fn.clone();
+        let widths_fn2 = widths_fn.clone();
+        (
+            table_header(
+                move || header_fn(),
+                move |x| header_key_fn(x),
+                move |x| header_view_fn(x),
+                move |x| widths_fn(x),
+            ),
+            table_rows(
+                move || header_fn2(),
+                move |x| header_key_fn2(x),
+                move || rows_fn(),
+                move |x| row_key_fn(x),
+                move |x, y| row_view_fn(x, y),
+                move |x| widths_fn2(x),
+            ),
+        )
     })
+    .base_style(|| Style::BASE.flex_col())
 }
 
 fn table_header<T, HF, H, WF, KHF, KH, VHF, VH>(
@@ -98,17 +96,15 @@ where
     let header_view_fn = Arc::new(header_view_fn);
     let widths_fn = Arc::new(widths_fn);
 
-    container(move || {
-        list(
-            move || header_fn(),
-            move |x| header_key_fn(x),
-            move |x| {
-                let header_view_fn = header_view_fn.clone();
-                let width = widths_fn(&x);
-                table_header_entry(move |x| header_view_fn(x), x, width)
-            },
-        )
-    })
+    list(
+        move || header_fn(),
+        move |x| header_key_fn(x),
+        move |x| {
+            let header_view_fn = header_view_fn.clone();
+            let width = widths_fn(&x);
+            table_header_entry(move |x| header_view_fn(x), x, width)
+        },
+    )
 }
 
 fn table_header_entry<T, VHF, V>(header_view_fn: VHF, x: T, width: f32) -> impl View
@@ -152,38 +148,37 @@ where
     ROWVF: Fn(&T, &U) -> ROWV + 'static + Clone,
     ROWV: View + 'static,
 {
-    container(move || {
-        // A list of lists.
-        // The outer list is for each row in the table.
-        // The inner list is for each column in the table.
-        // This seems a bit reversed from how you'd lay it out mentally, but it
-        // matches how the header works better.
-        list(
-            move || rows_fn(),
-            move |x| row_key_fn(x),
-            move |x: U| {
+    // A list of lists.
+    // The outer list is for each row in the table.
+    // The inner list is for each column in the table.
+    // This seems a bit reversed from how you'd lay it out mentally, but it
+    // matches how the header works better.
+    list(
+        move || rows_fn(),
+        move |x| row_key_fn(x),
+        move |x: U| {
+            let row_view_fn = row_view_fn.clone();
+            let header_fn = header_fn.clone();
+            let widths_fn = widths_fn.clone();
+            let header_key_fn = header_key_fn.clone();
+            // TODO(minor): Does this really need a container?
+            container(move || {
                 let row_view_fn = row_view_fn.clone();
-                let header_fn = header_fn.clone();
                 let widths_fn = widths_fn.clone();
-                let header_key_fn = header_key_fn.clone();
-                container(move || {
-                    let row_view_fn = row_view_fn.clone();
-                    let widths_fn = widths_fn.clone();
-                    list(
-                        move || header_fn(),
-                        move |x: &T| header_key_fn(x),
-                        move |y: T| {
-                            let row_view_fn = row_view_fn.clone();
-                            let widths_fn = widths_fn.clone();
-                            let width = widths_fn(&y);
-                            table_row_entry(move |x, y| row_view_fn(x, y), &y, &x, width)
-                        },
-                    )
-                })
-            },
-        )
-        .style(|| Style::BASE.flex_col())
-    })
+                list(
+                    move || header_fn(),
+                    move |x: &T| header_key_fn(x),
+                    move |y: T| {
+                        let row_view_fn = row_view_fn.clone();
+                        let widths_fn = widths_fn.clone();
+                        let width = widths_fn(&y);
+                        table_row_entry(move |x, y| row_view_fn(x, y), &y, &x, width)
+                    },
+                )
+            })
+        },
+    )
+    .base_style(|| Style::BASE.flex_col())
 }
 
 fn table_row_entry<T, U, VHF, V>(row_view_fn: VHF, x: &T, y: &U, width: f32) -> impl View

@@ -2,6 +2,9 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
+// TODO: rename everything to Settings to match.
+// TODO: ideally keep all field names the same so that we can just directly load/save the same as C# BG3MM.
+
 /// Configuration items.  
 /// If you add a configuration item, then there is several places that need to be modified.  
 /// - The default implementation below.
@@ -19,6 +22,8 @@ pub struct Config {
     pub game_executable_path: PathBuf,
     /// Folder name where load orders should be saved.
     pub saved_load_orders_path: PathBuf,
+    /// Path to the workshop folder. Currently unused.
+    pub workshop_path: PathBuf,
     // TODO: always disable telemetry setting? Is that for BG3MM or for BG3?
     pub enable_story_log: bool,
     pub auto_add_missing_dependencies_on_export: bool,
@@ -36,6 +41,10 @@ pub struct Config {
 }
 impl Config {
     pub fn load() -> std::io::Result<Config> {
+        todo!()
+    }
+
+    pub fn save(&self) -> std::io::Result<()> {
         todo!()
     }
 
@@ -58,10 +67,6 @@ impl Config {
             .to_str()
             .unwrap_or_default()
     }
-
-    pub fn save(&self) -> std::io::Result<()> {
-        todo!()
-    }
 }
 impl Default for Config {
     fn default() -> Self {
@@ -70,6 +75,7 @@ impl Default for Config {
             game_data_path: PathBuf::new(),
             game_executable_path: PathBuf::new(),
             saved_load_orders_path: PathBuf::from("Orders/"),
+            workshop_path: PathBuf::new(),
             enable_story_log: false,
             auto_add_missing_dependencies_on_export: true,
             show_missing_mod_warnings: true,
@@ -105,3 +111,54 @@ pub struct LaunchConfig {
 }
 
 // TODO: keybindings
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct ScriptExtenderSettings {
+    /// Make the Osiris extension functionality available ingame or in the editor
+    pub enable_extensions: bool,
+    pub create_console: bool,
+    pub log_failed_compile: bool,
+    pub enable_logging: bool,
+    pub log_compile: bool,
+    pub log_directory: PathBuf,
+    pub log_runtime: bool,
+    pub disable_mod_validation: bool,
+    pub enable_achievements: bool,
+    pub send_crash_reports: bool,
+    pub enable_debugger: bool,
+    pub debugger_port: u32,
+    pub dump_network_strings: bool,
+    pub debugger_flags: u32,
+    pub developer_mode: bool,
+    pub enable_lua_debugger: bool,
+
+    pub lua_builtin_resource_directory: PathBuf,
+    pub default_to_client_console: bool,
+    pub show_perf_warnings: bool,
+}
+impl Default for ScriptExtenderSettings {
+    fn default() -> Self {
+        Self {
+            enable_extensions: true,
+            create_console: false,
+            log_failed_compile: true,
+            enable_logging: false,
+            log_compile: false,
+            log_directory: PathBuf::default(),
+            log_runtime: false,
+            disable_mod_validation: true,
+            enable_achievements: true,
+            send_crash_reports: true,
+            enable_debugger: false,
+            debugger_port: 9999,
+            dump_network_strings: false,
+            debugger_flags: 0,
+            developer_mode: false,
+            enable_lua_debugger: false,
+            lua_builtin_resource_directory: PathBuf::default(),
+            default_to_client_console: false,
+            show_perf_warnings: false,
+        }
+    }
+}

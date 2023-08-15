@@ -103,7 +103,6 @@ pub fn active_mods(config: RwSignal<Config>) -> impl View {
                     .width_pct(100.0)
                     .flex_col()
                     .margin_bottom_px(10.0)
-                    // .items_start()
                     .background(DARK0_BG)
                     .color(DARK_TEXT)
             }),
@@ -119,7 +118,7 @@ pub fn active_mods(config: RwSignal<Config>) -> impl View {
             .style(|| Style::BASE.width_pct(100.0)),
         )
     })
-    .style(|| Style::BASE.flex_col())
+    .base_style(|| Style::BASE.flex_col())
 }
 
 const INACTIVE_MOD_TABLE_ENTRIES: [ModTableEntry; 5] = [

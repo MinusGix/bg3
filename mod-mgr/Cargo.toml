@@ -10,8 +10,13 @@ resolver = "2"
 
 [dependencies]
 clap = { version = "4.3.21", features = ["derive"] }
-floem = { git = "https://github.com/lapce/floem", rev = "57865513fc0538357ef7e0b23283423443234b9c" }
+dirs = "5.0.1"
+floem = { git = "https://github.com/lapce/floem", rev = "4b3913fb6db83bae94a5cab8d2dbc579d52a584a" }
 # TODO: get rid of it
 im = "15.1.0"
 # floem = { path = "/run/media/minus/Kairos/Code/Rust/floem/" }
 mod-mgr-lib = { path = "../mod-mgr-lib" }
+serde_json = "1.0.104"
+
+[target.'cfg(windows)'.dependencies]
+winreg = "0.50.0"
