@@ -14,24 +14,28 @@ use attr::TypeId;
 use binrw::{io::TakeSeekExt, meta::ReadEndian, BinRead, BinWrite};
 use util::{until_eof2, PascalStringU16};
 
-// pub const LSF_MAGIC: [u8; 4] = [0x4C, 0x53, 0x4F, 0x46];
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, BinRead)]
+#[repr(u32)]
+#[br(repr = u32)]
+pub enum LSFVersion {
+    /// Initial version of the LSF format
+    Initial = 1,
+    /// LSF version that added chunked compression for substreams
+    ChunkedCompress = 2,
+    //// LSF version that extended the node descriptors
+    ExtendedNodes = 3,
+    /// BG3 version, no changes found so far apart from version numbering
+    BG3 = 4,
+    /// The version where the extended header was added
+    BG3ExtendedHeader = 5,
+    /// BG3 version with unknown additions
+    BG3AdditionalBlob = 6,
+}
 
-/// Initial version of the LSF format
-pub const INITIAL_VERSION: u32 = 1;
-/// LSF version that added chunked compression for substreams
-pub const CHUNKED_COMPRESS_VERSION: u32 = 2;
-//// LSF version that extended the node descriptors
-pub const EXTENDED_NODES_VERSION: u32 = 3;
-/// BG3 version, no changes found so far apart from version numbering
-pub const BG3_VERSION: u32 = 4;
-/// The version where the extended header was added
-pub const BG3_EXTENDED_HEADER_VERSION: u32 = 5;
-/// BG3 version with unknown additions
-pub const BG3_ADDITIONAL_BLOB_VERSION: u32 = 6;
 /// Latest input version supported by this library
-pub const MAX_READ_VERSION: u32 = BG3_ADDITIONAL_BLOB_VERSION;
+pub const MAX_READ_VERSION: LSFVersion = LSFVersion::BG3AdditionalBlob;
 /// Latest output version supported by this library
-pub const MAX_WRITE_VERSION: u32 = BG3_ADDITIONAL_BLOB_VERSION;
+pub const MAX_WRITE_VERSION: LSFVersion = LSFVersion::BG3AdditionalBlob;
 
 /// Get the essential info about the LSF file. This avoids parsing the entire file.
 pub fn parse_lsf_base(input: &[u8]) -> Result<LSFBase, binrw::Error> {
@@ -49,12 +53,12 @@ pub fn parse_lsf(input: &[u8]) -> Result<LSF, binrw::Error> {
 #[derive(Debug, Clone, BinRead)]
 #[br(little, magic = b"LSOF")]
 // Avoid trying to process files we don't understand.
-#[br(assert(version >= INITIAL_VERSION && version <= MAX_READ_VERSION, "LSF version {} is not supported", version))]
+#[br(assert(version >= LSFVersion::Initial && version <= MAX_READ_VERSION, "LSF version {:?} is not supported", version))]
 pub struct LSFBase {
     /// Version of the LSOF file.  
     /// D:OS EE is version 1/2.  
     /// D:OS 2 is version 3.
-    pub version: u32,
+    pub version: LSFVersion,
     #[br(args(version))]
     pub header: Header,
     #[br(args(version))]
@@ -85,11 +89,11 @@ impl LSF {
 }
 
 #[derive(Debug, Clone, BinRead)]
-#[br(little, import (version: u32))]
+#[br(little, import (version: LSFVersion))]
 pub enum Header {
-    #[br(pre_assert(version < BG3_EXTENDED_HEADER_VERSION))]
+    #[br(pre_assert(version < LSFVersion::BG3ExtendedHeader))]
     V0(HeaderV0),
-    #[br(pre_assert(version >= BG3_EXTENDED_HEADER_VERSION))]
+    #[br(pre_assert(version >= LSFVersion::BG3ExtendedHeader))]
     V5(HeaderV5),
 }
 impl Header {
@@ -123,13 +127,13 @@ pub struct HeaderV5 {
 }
 
 #[derive(Debug, Clone, BinRead, BinWrite)]
-#[br(little, import (version: u32))]
+#[br(little, import (version: LSFVersion))]
 pub struct Metadata {
     /// Total uncompressed size of the string hash table
     pub strings_uncompressed_size: u32,
     /// Compressed size of the string hash table
     pub strings_size_on_disk: u32,
-    #[br(if(version >= BG3_ADDITIONAL_BLOB_VERSION))]
+    #[br(if(version >= LSFVersion::BG3AdditionalBlob))]
     pub unk: u64,
     /// Total uncompressed size of the node list
     pub nodes_uncompressed_size: u32,
@@ -196,7 +200,7 @@ pub enum CompressionLevel {
 
 fn binread_compressed<R, T, Arg>(
     r: &mut R,
-    version: u32,
+    version: LSFVersion,
     size_on_disk: u32,
     uncompressed_size: u32,
     compression_flags: CompressionFlags,
@@ -217,8 +221,7 @@ where
         // empty data
         Ok(T::default())
     } else {
-        println!("Compressed data");
-        let chunked = version >= CHUNKED_COMPRESS_VERSION && allow_chunked;
+        let chunked = version >= LSFVersion::ChunkedCompress && allow_chunked;
         let comp_method = compression_flags.method();
         let is_compressed = comp_method != CompressionMethod::None;
         let compressed_size = if is_compressed {
@@ -255,7 +258,7 @@ pub struct Names {
     pub names: Names2,
 }
 impl BinRead for Names {
-    type Args<'a> = (u32, u32, u32, CompressionFlags);
+    type Args<'a> = (LSFVersion, u32, u32, CompressionFlags);
 
     fn read_options<R: std::io::Read + std::io::Seek>(
         reader: &mut R,
@@ -302,7 +305,7 @@ pub struct Nodes {
     pub nodes: Nodes2,
 }
 impl BinRead for Nodes {
-    type Args<'a> = (u32, u32, u32, CompressionFlags, u32);
+    type Args<'a> = (LSFVersion, u32, u32, CompressionFlags, u32);
 
     fn read_options<R: std::io::Read + std::io::Seek>(
         reader: &mut R,
@@ -311,7 +314,7 @@ impl BinRead for Nodes {
             '_,
         >,
     ) -> binrw::BinResult<Self> {
-        binread_compressed::<R, Nodes2, (u32, u32)>(
+        binread_compressed::<R, Nodes2, _>(
             reader,
             version,
             size_on_disk,
@@ -325,7 +328,7 @@ impl BinRead for Nodes {
 }
 
 #[derive(Debug, Default, Clone, BinRead)]
-#[br(little, import(version : u32, has_sibling_data : u32))]
+#[br(little, import(version : LSFVersion, has_sibling_data : u32))]
 pub struct Nodes2 {
     #[br(parse_with = |r, e, _: ()| until_eof2(r, e, (version, has_sibling_data)))]
     pub nodes: Vec<NodeEntry>,
@@ -333,11 +336,11 @@ pub struct Nodes2 {
 
 /// Node (structure) entry in the LSF file
 #[derive(Debug, Clone, BinRead, BinWrite)]
-#[br(little, import (version: u32, has_sibling_data: u32))]
+#[br(little, import (version: LSFVersion, has_sibling_data: u32))]
 pub enum NodeEntry {
-    #[br(pre_assert(version < EXTENDED_NODES_VERSION || has_sibling_data != 1))]
+    #[br(pre_assert(version < LSFVersion::ExtendedNodes || has_sibling_data != 1))]
     V2(NodeEntryV2),
-    #[br(pre_assert(version >= EXTENDED_NODES_VERSION && has_sibling_data == 1))]
+    #[br(pre_assert(version >= LSFVersion::ExtendedNodes && has_sibling_data == 1))]
     V3(NodeEntryV3),
 }
 impl NodeEntry {
@@ -467,7 +470,7 @@ pub struct Attributes {
     pub attrs: Attributes2,
 }
 impl BinRead for Attributes {
-    type Args<'a> = (u32, u32, u32, CompressionFlags, u32);
+    type Args<'a> = (LSFVersion, u32, u32, CompressionFlags, u32);
 
     fn read_options<R: std::io::Read + std::io::Seek>(
         reader: &mut R,
@@ -476,7 +479,7 @@ impl BinRead for Attributes {
             '_,
         >,
     ) -> binrw::BinResult<Self> {
-        binread_compressed::<R, Attributes2, (u32, u32)>(
+        binread_compressed::<R, Attributes2, _>(
             reader,
             version,
             size_on_disk,
@@ -490,20 +493,18 @@ impl BinRead for Attributes {
 }
 
 #[derive(Debug, Clone, Default, BinRead, BinWrite)]
-#[br(little, import (version: u32, has_sibling_data: u32))]
+#[br(little, import (version: LSFVersion, has_sibling_data: u32))]
 pub struct Attributes2 {
     #[br(parse_with = |r, e, _: ()| until_eof2(r, e, (version, has_sibling_data)))]
     pub attrs: Vec<AttributesEntry>,
 }
 
 #[derive(Debug, Clone, BinRead, BinWrite)]
-#[br(little, import (version: u32, has_sibling_data: u32))]
+#[br(little, import (version: LSFVersion, has_sibling_data: u32))]
 pub enum AttributesEntry {
-    // #[br(pre_assert(version >= EXTENDED_NODES_VERSION && has_sibling_data == 1))]
-    #[br(pre_assert(version < EXTENDED_NODES_VERSION || has_sibling_data != 1))]
+    #[br(pre_assert(version < LSFVersion::ExtendedNodes || has_sibling_data != 1))]
     V2(AttributeEntryV2),
-    // #[br(pre_assert(version < EXTENDED_NODES_VERSION || has_sibling_data != 1))]
-    #[br(pre_assert(version >= EXTENDED_NODES_VERSION && has_sibling_data == 1))]
+    #[br(pre_assert(version >= LSFVersion::ExtendedNodes && has_sibling_data == 1))]
     V3(AttributeEntryV3),
 }
 impl AttributesEntry {
