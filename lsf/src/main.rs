@@ -2,8 +2,8 @@ use binrw::{io::TakeSeekExt, until_eof, BinRead};
 use lsf::{lsx::parse_lsx, parse_lsf};
 
 fn main() {
-    test_reading_lsf();
-    // test_reading_lsx();
+    // test_reading_lsf();
+    test_reading_lsx();
 }
 
 fn test_reading_lsf() {
@@ -48,12 +48,28 @@ fn test_reading_lsf() {
 }
 
 fn test_reading_lsx() {
-    let data = std::fs::read_to_string(
-        "/run/media/minus/Kairos/Games/Modding/BG3/Out/Shared/Public/Shared/Gods/Gods.lsx",
-    )
-    .unwrap();
-    let lsx = parse_lsx(&data).unwrap();
-    println!("{:#?}", lsx);
+    // let path = "/run/media/minus/Kairos/Games/Modding/BG3/Out/Shared/Public/Shared/Gods/Gods.lsx";
+    // let path =
+    // "/run/media/minus/Kairos/Games/Modding/BG3/Out/Gustav/Public/Gustav/Voices/Voices.lsx";
+    let path =
+        "/run/media/minus/Kairos/Games/Modding/BG3/Out/Gustav/Public/Gustav/Timeline/Generated/";
+    let files = std::fs::read_dir(path).unwrap();
+    for entry in files {
+        let entry = entry.unwrap();
+        if entry.file_type().unwrap().is_dir() {
+            continue;
+        }
+        let path = entry.path();
+
+        if path.extension() != Some("lsx".as_ref()) {
+            continue;
+        }
+
+        println!("Path: {:?}", path);
+        let data = std::fs::read_to_string(path).unwrap();
+        let lsx = parse_lsx(&data).unwrap();
+    }
+    // println!("{:#?}", lsx);
 }
 
 // TODO: lsf -> lsx

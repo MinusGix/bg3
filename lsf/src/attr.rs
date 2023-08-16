@@ -1,5 +1,6 @@
 use serde::{de::Error, Deserialize, Deserializer, Serialize, Serializer};
 
+// TODO: This should maybe be extracted to a utility crate
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum TypeId {
     None = 0,
@@ -174,5 +175,17 @@ impl TypeId {
     pub fn deser_str<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let s = String::deserialize(deserializer)?;
         Self::from_str(&s).ok_or_else(|| D::Error::custom(format!("invalid type: {}", s)))
+    }
+
+    /// Deserialize from a string, but check if it is an integer id first and then fallback to str
+    /// conversion
+    #[doc(hidden)]
+    pub fn deser_str_or_int<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let s = String::deserialize(deserializer)?;
+        if let Ok(id) = s.parse::<u8>() {
+            Self::from_id(id).ok_or_else(|| D::Error::custom(format!("invalid type id: {}", id)))
+        } else {
+            Self::from_str(&s).ok_or_else(|| D::Error::custom(format!("invalid type: {}", s)))
+        }
     }
 }
