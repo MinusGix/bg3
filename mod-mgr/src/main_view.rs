@@ -13,7 +13,7 @@ use floem::{
     views::{container, container_box, label, stack, Decorators},
     ViewContext,
 };
-use mod_mgr_lib::config::Config;
+use mod_mgr_lib::settings::Settings;
 
 use crate::{
     mod_table_view::{active_mods, inactive_mods},
@@ -97,7 +97,7 @@ fn ask_game_path_view(main_data: MainData) -> impl View {
     let game_path = create_rw_signal(String::new());
     let startup_stage = main_data.startup_stage.clone();
     let game_data_info: RwSignal<Option<GameDataInfo>> = create_rw_signal(None);
-    let config = main_data.config.clone();
+    let settings = main_data.settings.clone();
     let pathway = main_data.pathway.clone();
 
     // Whenever the game path changes, update game data info.
@@ -130,7 +130,7 @@ fn ask_game_path_view(main_data: MainData) -> impl View {
                     simple_form_input("Path:", game_path, 300.0, 24.0)
                         .style(|| Style::BASE.font_size(20.0).color(DARK_TEXT)),
                     svg_button(hard_disk_icon(), move || {
-                        // TODO(minor): Set starting path to the current config path / current guessed path?
+                        // TODO(minor): Set starting path to the current settings path / current guessed path?
                         let options = FileDialogOptions::new()
                             // just in case their steam folder is hidden, like it is commonly named
                             // .steam on Linux
@@ -169,13 +169,13 @@ fn ask_game_path_view(main_data: MainData) -> impl View {
                         }
 
                         // TODO: This triggers an effect run regardless of whether we've changed anything..
-                        config.update(|config| {
+                        settings.update(|settings| {
                             if let Some(game_data_path) = game_data_info.game_data_path {
-                                config.game_data_path = game_data_path;
+                                settings.game_data_path = game_data_path;
                             }
 
                             if let Some(game_executable_path) = game_data_info.game_exe_path {
-                                config.game_executable_path = game_executable_path;
+                                settings.game_executable_path = game_executable_path;
                             }
                         });
 
@@ -213,7 +213,7 @@ fn ask_game_path_view(main_data: MainData) -> impl View {
 }
 
 fn main_view(main_data: MainData) -> impl View {
-    let config = main_data.config.clone();
+    let settings = main_data.settings.clone();
 
     stack(move || {
         (
@@ -221,8 +221,8 @@ fn main_view(main_data: MainData) -> impl View {
             stack(move || {
                 (
                     // TODO: Currently if we resize the window small enough then the inactive mods will intersect with the active mods. We should use the response feature or something like it to check for if the screen is small and then just put the inactive mods below.
-                    active_mods(config.clone()).style(|| Style::BASE.width_pct(50.0)),
-                    inactive_mods(config.clone())
+                    active_mods(settings.clone()).style(|| Style::BASE.width_pct(50.0)),
+                    inactive_mods(settings.clone())
                         .style(|| Style::BASE.width_pct(50.0).items_end().justify_end()),
                 )
             })

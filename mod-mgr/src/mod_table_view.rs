@@ -6,7 +6,7 @@ use floem::{
     view::View,
     views::{container, empty, label, stack, Decorators},
 };
-use mod_mgr_lib::config::Config;
+use mod_mgr_lib::settings::Settings;
 
 use crate::{table::table, view_util::simple_form_input, DARK0_BG, DARK_TEXT};
 
@@ -64,7 +64,7 @@ impl ModRow {
 }
 
 // TODO: searching
-pub fn active_mods(config: RwSignal<Config>) -> impl View {
+pub fn active_mods(settings: RwSignal<Settings>) -> impl View {
     let mods_filter = create_rw_signal(String::new());
     // TODO: I think it optionally has more fields you can show
     let rows = im::Vector::from_iter(
@@ -129,7 +129,7 @@ const INACTIVE_MOD_TABLE_ENTRIES: [ModTableEntry; 5] = [
     ModTableEntry::Blank,
 ];
 
-pub fn inactive_mods(config: RwSignal<Config>) -> impl View {
+pub fn inactive_mods(settings: RwSignal<Settings>) -> impl View {
     // TODO: searching
     // table(
     //     move || INACTIVE_MOD_TABLE_ENTRIES,

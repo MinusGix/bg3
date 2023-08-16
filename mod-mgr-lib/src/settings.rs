@@ -1,18 +1,14 @@
-use std::path::{Path, PathBuf};
+use std::{io::Write, path::PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-// TODO: rename everything to Settings to match.
-// TODO: ideally keep all field names the same so that we can just directly load/save the same as C# BG3MM.
+// TODO: provide these descriptions in the ui
 
-/// Configuration items.  
-/// If you add a configuration item, then there is several places that need to be modified.  
-/// - The default implementation below.
-/// - `mod-mgr`
-///   - `settings_view.rs` has `save_config` and various structures for holding signals for the
-///     configuration items that are changeable in the manager.
+const SETTINGS_PATH: &str = "Data/settings.json";
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Config {
+#[serde(rename_all = "PascalCase")]
+pub struct Settings {
     // TODO: give the paths decent default values on the common platforms.
     /// Path to the game's data folder.  
     /// Ex: "C:/Steam/steamapps/common/Baldurs Gate 3/Data"
@@ -20,32 +16,55 @@ pub struct Config {
     /// Path to the game's executable.  
     /// Ex: "C:/Steam/steamapps/common/Baldurs Gate 3/bin/bg3.exe"
     pub game_executable_path: PathBuf,
+    /// Override the default location to `%LOCALAPPDATA/Larian Studios/Baldur's Gate 3/`
+    pub documents_folder_path_override: PathBuf,
+    /// Whether Larian's telemetry options for BG3 will always be disabled, regardless of active
+    /// mods. Telemetry is always disabled if mods are active.
+    pub telemetry_disabled: bool,
     /// Folder name where load orders should be saved.
     pub saved_load_orders_path: PathBuf,
     /// Path to the workshop folder. Currently unused.
     pub workshop_path: PathBuf,
-    // TODO: always disable telemetry setting? Is that for BG3MM or for BG3?
-    pub enable_story_log: bool,
+    /// When launching the game, enabled the Osiris story log (osiris.log)
+    pub game_story_log_enabled: bool,
     pub auto_add_missing_dependencies_on_export: bool,
     // TODO: auto updates
     // pub enable_automatic_updates: bool,
-    pub show_missing_mod_warnings: bool,
+    /// If a load order is missing mods, no warnings will be displayed
+    pub disable_missing_mod_warnings: bool,
+    /// The mod manager will try and find mod tags from the workshop by default
+    pub disable_workshop_tag_check: bool,
+    /// Export all values, even if it matches a default extender value
+    pub export_default_extender_settings: bool,
+    /// When moving selected mods to the opposite list with Enter, move focus to that list as well
     pub shift_focus_on_swap: bool,
     pub save_window_location: bool,
-    // TODO
-    // pub on_game_launch
-    pub enable_dx11_mode: bool,
+    #[serde(rename = "LaunchDX11")]
+    pub launch_dx11: bool,
+    /// Pass `--skip-launcher` when launching the game.
     pub skip_launcher: bool,
-    // TODO: linux specific settings? Like proton version to use?
-    pub launch: LaunchConfig,
+    /// Automatically check for updates when the program starts
+    pub check_for_updates: bool,
+    pub game_launch_params: String,
+    // // TODO: linux specific settings? Like proton version to use?
+    // pub launch: LaunchSettings,
 }
-impl Config {
-    pub fn load() -> std::io::Result<Config> {
+impl Settings {
+    pub fn load() -> std::io::Result<Settings> {
         todo!()
     }
 
-    pub fn save(&self) -> std::io::Result<()> {
-        todo!()
+    pub fn save(&self) -> anyhow::Result<()> {
+        let contents = serde_json::to_string_pretty(self)?;
+        let mut file = std::fs::OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open(SETTINGS_PATH)?;
+
+        file.write_all(contents.as_bytes())?;
+
+        Ok(())
     }
 
     /// Returns "" if the path is None
@@ -68,7 +87,7 @@ impl Config {
             .unwrap_or_default()
     }
 }
-impl Default for Config {
+impl Default for Settings {
     fn default() -> Self {
         Self {
             // TODO: check the actual defaults
@@ -76,39 +95,45 @@ impl Default for Config {
             game_executable_path: PathBuf::new(),
             saved_load_orders_path: PathBuf::from("Orders/"),
             workshop_path: PathBuf::new(),
-            enable_story_log: false,
+            game_story_log_enabled: false,
             auto_add_missing_dependencies_on_export: true,
-            show_missing_mod_warnings: true,
+            telemetry_disabled: false,
+            launch_dx11: false,
+            documents_folder_path_override: PathBuf::new(),
+            disable_missing_mod_warnings: false,
             shift_focus_on_swap: false,
             save_window_location: true,
-            enable_dx11_mode: false,
+            disable_workshop_tag_check: false,
+            export_default_extender_settings: false,
             skip_launcher: true,
-            launch: LaunchConfig::default(),
+            check_for_updates: true,
+            game_launch_params: String::new(),
+            // launch: LaunchSettings::default(),
         }
     }
 }
 
-#[derive(Debug, Default, Clone, Serialize, Deserialize)]
-pub struct LaunchConfig {
-    /// Automatically load the last save when loading into the main menu.
-    pub continue_game: bool,
-    /// Enables the story log
-    pub story_log: bool,
-    /// A directory to write story logs to
-    pub log_path: Option<PathBuf>,
-    /// Limit the cpu to x amount of threads (unknown if this works)
-    pub cpu_limit: Option<usize>,
-    pub asserts: bool,
-    pub stats: bool,
-    pub dynamic_story: bool,
-    // TODO: give these their actual types
-    pub external_crash_handler: bool,
-    pub name_tag: bool,
-    pub module: bool,
-    pub connect_lobby: bool,
-    pub loca_updater: bool,
-    pub media_path: bool,
-}
+// #[derive(Debug, Default, Clone, Serialize, Deserialize)]
+// pub struct LaunchSettings {
+//     /// Automatically load the last save when loading into the main menu.
+//     pub continue_game: bool,
+//     /// Enables the story log
+//     pub story_log: bool,
+//     /// A directory to write story logs to
+//     pub log_path: Option<PathBuf>,
+//     /// Limit the cpu to x amount of threads (unknown if this works)
+//     pub cpu_limit: Option<usize>,
+//     pub asserts: bool,
+//     pub stats: bool,
+//     pub dynamic_story: bool,
+//     // TODO: give these their actual types
+//     pub external_crash_handler: bool,
+//     pub name_tag: bool,
+//     pub module: bool,
+//     pub connect_lobby: bool,
+//     pub loca_updater: bool,
+//     pub media_path: bool,
+// }
 
 // TODO: keybindings
 

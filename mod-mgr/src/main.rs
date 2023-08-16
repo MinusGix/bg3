@@ -5,6 +5,8 @@ pub mod resources;
 pub mod settings_view;
 pub mod tab_view;
 pub mod table;
+pub mod ui_mod_data;
+pub mod util;
 pub mod view_util;
 
 use std::path::{Path, PathBuf};
@@ -16,11 +18,15 @@ use floem::{
 };
 use main_view::{app_view, StartupStage};
 use mod_mgr_lib::{
-    config::Config,
+    settings::{ScriptExtenderSettings, Settings},
     util::divinity_registry_helper::{self, get_game_install_path},
     BG3_STEAM_ID,
 };
 use resources::default_paths;
+use ui_mod_data::UIModData;
+use util::space_replace;
+
+use crate::util::space_replace_front;
 
 #[derive(Debug, Clone, Parser)]
 #[command(author, version, about, long_about = None)]
@@ -28,7 +34,7 @@ pub struct Args {
     /// Run the application 'dry' without actually doing anything.
     #[clap(long)]
     dry: bool,
-    // TODO(minor): custom config path, overwrite active game data path, etc.
+    // TODO(minor): custom settings path, overwrite active game data path, etc.
 }
 
 // TODO: updater
@@ -37,20 +43,20 @@ pub struct Args {
 fn main() {
     let args = Args::parse();
 
-    // TODO: load config from a config file
+    // TODO: load settings from a settings file
     let settings_path = PathBuf::from("Data/settings.json");
-    let config = load_config(&settings_path).expect("Failed to parse configuration file");
+    let settings = load_settings(&settings_path).expect("Failed to parse settingsuration file");
 
     // TODO: window title
     // TODO: on linux systems, alert that the window should be floating by default for tiling window managers. Or at least do that for settings/about
 
     // Start GUI
     let root_view = move || {
-        let main_data = MainData::new(args.clone(), config.clone());
+        let main_data = MainData::new(args.clone(), settings.clone());
         let startup_stage = main_data.startup_stage.clone();
 
-        main_data.config.with(move |config| {
-            if !config.game_data_path.is_dir() || !config.game_executable_path.is_file() {
+        main_data.settings.with(move |settings| {
+            if !settings.game_data_path.is_dir() || !settings.game_executable_path.is_file() {
                 eprintln!("Failed to find game data path. Asking user for the location");
                 startup_stage.set(StartupStage::AskGamePath);
             } else {
@@ -67,42 +73,50 @@ fn main() {
     floem::launch(root_view)
 }
 
-fn load_config(path: &Path) -> serde_json::Result<Config> {
+fn load_settings(path: &Path) -> serde_json::Result<Settings> {
     if let Ok(content) = std::fs::read_to_string(&path) {
         // TODO: we could show a dialog box to the user asking them if they want to
-        // - replace their configuration with the default config
+        // - replace their settingsuration with the default settings
         // - or open it in a text editor to make it easy to share with me
         serde_json::from_str(&content)
     } else {
-        // The file doesn't exist so we'll just use the default configuration.
-        eprintln!("There was no configuration file at: {path:?}, using default configuration.");
-        Ok(Config::default())
+        // The file doesn't exist so we'll just use the default settingsuration.
+        eprintln!("There was no settingsuration file at: {path:?}, using default settingsuration.");
+        Ok(Settings::default())
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct MainData {
     pub dry: bool,
-    pub config: RwSignal<Config>,
+    pub settings: RwSignal<Settings>,
     pub workshop_support_enabled: RwSignal<bool>,
 
     pub startup_stage: RwSignal<StartupStage>,
     pub pathway: RwSignal<PathwayData>,
+    // TODO: is this ever initialized?
+    pub extender_settings: RwSignal<Option<ScriptExtenderSettings>>,
+    pub mods: im::Vector<UIModData>,
 }
 impl MainData {
-    // Roughly equivalent to C#'s LoadSettings, though it has the config/settings loaded outside it.
-    pub fn new(args: Args, config: Config) -> MainData {
-        // TODO: loadappconfig
-        let config = create_rw_signal(config.clone());
+    // Roughly equivalent to C#'s LoadSettings, though it has the settings/settings loaded outside it.
+    pub fn new(args: Args, settings: Settings) -> MainData {
+        // TODO: loadappsettings?
+        let settings = create_rw_signal(settings.clone());
 
-        // TODO: documents folder path override
-        let documents_folder_path_override = None;
-        let game_data_path = config.with_untracked(|config| config.game_data_path.clone());
-        let pathway_data = PathwayData::new(
-            config.clone(),
-            &game_data_path,
-            documents_folder_path_override,
-        );
+        let (game_data_path, doc_path_override) = settings.with_untracked(|settings| {
+            (
+                settings.game_data_path.clone(),
+                settings.documents_folder_path_override.clone(),
+            )
+        });
+        let doc_path_override = if doc_path_override.as_os_str().is_empty() {
+            None
+        } else {
+            Some(doc_path_override)
+        };
+
+        let pathway_data = PathwayData::new(settings.clone(), &game_data_path, doc_path_override);
 
         let pathway_data = create_rw_signal(pathway_data);
 
@@ -113,21 +127,40 @@ impl MainData {
 
         // TODO: there's various Keys that get actions added to them.
 
+        let extender_settings = create_rw_signal(None);
+
+        // TODO: log enabled listener
+        // TODO: theme change listener
+        // TODO: extender settings enable extension listener
+        // TODO: action on game launch changed listener
+        // TODO: display filenames header change. Though this should be done in that area of code.
+        // TODO: listen for documents folder path override change?
+        // TOOD: keep track of window location if that setting is set.
+
+        // if settings.with_untracked(|settings| settings.log_enabled) {}
+
         MainData {
             dry: args.dry,
-            config,
+            settings,
             workshop_support_enabled,
             startup_stage,
             pathway: pathway_data,
+            extender_settings,
+            mods: im::Vector::new(),
         }
     }
 
-    // TODO: I'm currently assuming that our reactive tracking works the same as their
-    // implementation.
-    // That is, the current assumption is that it does not recheck path validity until the setting
-    // is changed. I should check that just to make absolutely sure.
+    // The original implementation register a bunch of their reactive library's signals for when a
+    // value changes as variables. We just have them as functions which serve the same purpose,
+    // where you will listen to what they depend on. And when that changes, that will trigger
+    // functions that can depend on signals (like views and such) to be recomputed.
+    //
+    // However that is for ones that are side-effect free. They're essentially just altering the
+    // specific value that they are.
+    // Other listeners, their entire point side effects rather than being data, and so we construct
+    // those with create effect above.
 
-    // TODO: These functions would check more than they should because they're listening on changes to config rather than the necessary fields. We could make a second version of config that replicates the fields as RwSignals to have better granularity.
+    // TODO: These functions would check more than they should because they're listening on changes to settings rather than the necessary fields. We could make a second version of settings that replicates the fields as RwSignals to have better granularity.
 
     /// Check if the workshop folder is available & exists.
     /// Requires that workshop support be enabled and that the path is valid.  
@@ -137,8 +170,8 @@ impl MainData {
             return false;
         }
 
-        self.config.with(|config| {
-            let path = &config.workshop_path;
+        self.settings.with(|settings| {
+            let path = &settings.workshop_path;
             !path.as_os_str().is_empty() && path.is_dir()
         })
     }
@@ -147,20 +180,33 @@ impl MainData {
     /// Requires that the path is valid.  
     /// Note: this will track the signals required
     pub fn can_open_game_exe(&self) -> bool {
-        self.config.with(|config| {
-            let path = &config.game_executable_path;
+        self.settings.with(|settings| {
+            let path = &settings.game_executable_path;
             !path.as_os_str().is_empty() && path.is_file()
         })
     }
 
-    // TODO:
-    // /// Check if the log directory can be updated.
-    // pub fn can_open_log_directory(&self) -> bool {
-    //     self.config.with(|config| {
-    //         let path = &config.extender_log_directory;
-    //         !path.as_os_str().is_empty() && path.is_dir()
-    //     })
-    // }
+    /// Note: this will track the signals required
+    pub fn extender_log_directory(&self) -> Option<PathBuf> {
+        self.extender_settings
+            .with(|ext| Some(ext.as_ref()?.log_directory.clone()))
+    }
+
+    /// Check if the log directory can be updated.
+    pub fn can_open_log_directory(&self) -> bool {
+        let Some(path) = self.extender_log_directory() else {
+                return false;
+            };
+        !path.as_os_str().is_empty() && path.is_dir()
+    }
+
+    pub fn open_logs_folder(&self) {
+        if let Some(path) = self.extender_log_directory() {
+            if let Err(err) = open::that_detached(&path) {
+                eprintln!("Failed to open logs folder: {err}");
+            }
+        }
+    }
 
     /// Check if the mods folder is available & exists.  
     /// Note: this will track the signals required
@@ -171,13 +217,129 @@ impl MainData {
         })
     }
 
-    /// Save the config. This should be preferred over directly using [`Config::save`] as it
+    /// Open the mods folder in the user's file browser
+    pub fn open_mods_folder(&self) {
+        if let Err(err) = self
+            .pathway
+            .with_untracked(|pathway| open::that_detached(&pathway.documents_mods_path))
+        {
+            eprintln!("Failed to open mods folder: {err}");
+        }
+    }
+
+    pub fn can_open_game_folder(&self) -> bool {
+        self.settings.with_untracked(|settings| {
+            let path = &settings.game_executable_path;
+            !path.as_os_str().is_empty() && path.is_file()
+        })
+    }
+
+    pub fn open_game_folder(&self) {
+        self.settings.with_untracked(|settings| {
+            if let Some(folder) = settings.game_executable_path.parent() {
+                if folder.is_dir() {
+                    if let Err(err) = open::that_detached(&folder) {
+                        eprintln!("Failed to open game folder: {err}");
+                    }
+                }
+            }
+        })
+    }
+
+    pub fn open_workshop_folder(&self) {
+        self.settings.with_untracked(|settings| {
+            if !settings.workshop_path.as_os_str().is_empty() && settings.workshop_path.is_dir() {
+                if let Err(err) = open::that_detached(&settings.workshop_path) {
+                    eprintln!("Failed to open workshop folder: {err}");
+                }
+            }
+        })
+    }
+
+    pub fn launch_game(&self) {
+        // TODO: linux implemenation
+        // TODO: macos implementation
+        // TODO: could we just generalize this by talking to steam? Probably can't pass arguments that way?
+
+        self.settings.with_untracked(|settings| {
+            if !cfg!(windows) {
+                // TODO: Can we tell steam to launch the game with specific args?
+                // Or can we use proton-call and somehow get the proton version they have set?
+
+                // TODO: show this as an alert, or as a tooltip and don't let linux/mac users click it in the first place
+                // TODO: can mac users just launch the game with it since they have a native version?
+                eprintln!("Launching game is not supported on this platform");
+                return;
+            }
+
+            if !settings.game_executable_path.is_file() {
+                if settings.game_executable_path.as_os_str().is_empty() {
+                    eprintln!("No game executable path set");
+                    // TODO: show an alert.
+                } else {
+                    eprintln!(
+                        "Failed to find game executable at: {:?}",
+                        settings.game_executable_path
+                    );
+                    // TODO: show an alert.
+                }
+
+                return;
+            }
+
+            let mut launch_params = settings.game_launch_params.clone();
+
+            if settings.game_story_log_enabled && !launch_params.contains("storylog") {
+                space_replace(&mut launch_params, "-storylog 1");
+            }
+
+            if settings.skip_launcher && !launch_params.contains("skip-launcher") {
+                space_replace_front(&mut launch_params, "-skip-launcher");
+            }
+
+            let mut exe_path = settings.game_executable_path.clone();
+            let exe_dir = exe_path.parent().unwrap();
+
+            if settings.launch_dx11 {
+                let next_exe = exe_dir.join("bg3_dx11.exe");
+                if next_exe.is_file() {
+                    exe_path = next_exe;
+                }
+            }
+
+            eprintln!("Opening game exe at: {exe_path:?} with args {launch_params}");
+
+            // We have to parse the arguments because Rust's command does not let you directly run
+            // it.
+            // We could manually pass it to system specific bash/cmd/whatever, but that is just
+            // harder and has issues of escaping the parameters properly.
+            //
+            // We could store the parameters as a vector, but that would break settings file
+            // compatibility with C# BG3ModManager. There's other methods but they have their own
+            // issues. This is simple and more than fast enough.
+            let args = shlex::split(&launch_params).unwrap_or_else(Vec::new);
+
+            let mut command = std::process::Command::new(exe_path);
+            command.args(args);
+
+            match command.spawn() {
+                Ok(_child) => {}
+                Err(err) => {
+                    eprintln!("Failed to launch game: {err}");
+                }
+            }
+
+            todo!()
+        })
+    }
+
+    /// Save the settings. This should be preferred over directly using [`Settings::save`] as it
     /// does various minor fixups.  
     /// Note: this does not track any signals.
-    pub fn save_config(&self) {
+    pub fn save_settings(&self) {
         let game_executable_path = self
-            .config
-            .with_untracked(|config| config.game_executable_path.clone());
+            .settings
+            .with_untracked(|settings| settings.game_executable_path.clone());
 
         // If the user set the game executable path to a directory, we try to fix that by finding
         // the exe file in the dir and saving that instead.
@@ -197,8 +359,8 @@ impl MainData {
                 if self.dry {
                     eprintln!("Would have updated game_executable_path to {exe:?}");
                 } else {
-                    self.config.update(|config| {
-                        config.game_executable_path = exe;
+                    self.settings.update(|settings| {
+                        settings.game_executable_path = exe;
                     })
                 }
             }
@@ -206,31 +368,96 @@ impl MainData {
 
         // TODO: it runs export_extender_settings
 
-        self.config.with_untracked(|config| {
+        self.settings.with_untracked(|settings| {
             if self.dry {
-                eprintln!("Would have saved config");
+                eprintln!("Would have saved settings");
                 return;
             }
 
-            if let Ok(_) = config.save() {
+            if let Ok(_) = settings.save() {
                 // TODO: It shows on the alert bar, 'saved settings to blahblah'
             }
         });
     }
 
     pub fn open_settings_folder(&self) {
-        todo!()
+        if let Err(err) = self
+            .settings
+            .with_untracked(|settings| open::that_detached(mod_mgr_lib::DIR_DATA))
+        {
+            eprintln!("Failed to open settings folder: {err}");
+        }
     }
 
     pub fn export_extender_settings(&self) {
+        if self.extender_settings.with_untracked(Option::is_none) {
+            // TODO: C# version writes it regardless of whether it is initialized?
+            eprintln!("Did not save script extender settings due to it not being initialized");
+            return;
+        }
+
         let game_executable_path = self
-            .config
-            .with_untracked(|config| config.game_executable_path.clone());
+            .settings
+            .with_untracked(|settings| settings.game_executable_path.clone());
 
         let dir_name = game_executable_path.parent().unwrap_or(&Path::new(""));
         let output_file = dir_name.join("ScriptExtenderSettings.json");
 
-        todo!()
+        // TODO: we aren't saving it quite like how the mod manager does it. They skip over fields that are their default values, if a certain setting is off.
+
+        // let contents = serde_json::to_string_pretty(self.extender_settings.as_ref().unwrap());
+        let contents = self
+            .extender_settings
+            .with_untracked(|ext| serde_json::to_string_pretty(ext.as_ref().unwrap()));
+
+        match contents {
+            Ok(contents) => {
+                if let Err(err) = std::fs::write(&output_file, contents) {
+                    eprintln!("Failed to write Script Extender settings to {output_file:?}: {err}");
+                }
+
+                // TODO: it shows a success alert
+            }
+            // TODO: it shows an alert
+            Err(err) => {
+                eprintln!("Error tyrbubg Script Extender settings into json: {err:?}")
+            }
+        }
+    }
+
+    // TODO: can reset extender settings observable
+
+    pub fn reset_extender_settings_to_default(&self) {
+        // TODO: it asks the user if they're sure. Really that should be done outside this function.
+
+        self.settings.update(|settings| {
+            settings.export_default_extender_settings = false;
+        });
+        self.extender_settings
+            .set(Some(ScriptExtenderSettings::default()));
+    }
+
+    pub fn reset_keybindings(&self) {
+        // TODO:
+    }
+
+    pub fn clear_workshop_cache(&self) {
+        let path = Path::new("Data/workshopdata.json");
+        if path.is_file() {
+            // TODO:
+        }
+    }
+
+    pub fn add_launch_param(&self, param: impl AsRef<str>) {
+        self.settings.update(|settings| {
+            space_replace(&mut settings.game_launch_params, param.as_ref());
+        })
+    }
+
+    pub fn clear_launch_params(&self) {
+        self.settings.update(|settings| {
+            settings.game_launch_params = String::new();
+        })
     }
 }
 
@@ -260,14 +487,14 @@ impl PathwayData {
     /// Create a new [`PathwayData`] instance from the given information.  
     /// If the supplied `larian_documents_folder` argument is not set it will be inferred.
     pub fn new(
-        config: RwSignal<Config>,
+        settings: RwSignal<Settings>,
         current_game_data_path: &Path,
         larian_documents_folder: Option<PathBuf>,
     ) -> PathwayData {
-        let (game_executable_path, game_data_path) = config.with_untracked(|config| {
+        let (game_executable_path, game_data_path) = settings.with_untracked(|settings| {
             (
-                config.game_executable_path.clone(),
-                config.game_data_path.clone(),
+                settings.game_executable_path.clone(),
+                settings.game_data_path.clone(),
             )
         });
 
@@ -364,9 +591,9 @@ impl PathwayData {
                         };
 
                         if exe_path.is_file() {
-                            config.update(|config| {
-                                config.game_executable_path = exe_path;
-                                eprintln!("Exe path set to {:?}", config.game_executable_path);
+                            settings.update(|settings| {
+                                settings.game_executable_path = exe_path;
+                                eprintln!("Exe path set to {:?}", settings.game_executable_path);
                             })
                         }
                     }
@@ -387,9 +614,9 @@ impl PathwayData {
                 };
 
                 if exe_path.is_file() {
-                    config.update(|config| {
-                        config.game_executable_path = exe_path;
-                        eprintln!("Exe path set to {:?}", config.game_executable_path);
+                    settings.update(|settings| {
+                        settings.game_executable_path = exe_path;
+                        eprintln!("Exe path set to {:?}", settings.game_executable_path);
                     });
                 }
             }

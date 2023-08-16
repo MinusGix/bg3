@@ -1,16 +1,12 @@
 use std::{fmt::Display, path::PathBuf};
 
 use floem::{
-    peniko::Color,
     reactive::{create_rw_signal, RwSignal},
-    style::{AlignContent, CursorStyle, Style},
+    style::Style,
     view::View,
-    views::{
-        container, container_box, label, scroll, stack, svg, tab, text_input, Decorators,
-        VirtualListVector,
-    },
+    views::{container, container_box, label, scroll, stack, Decorators},
 };
-use mod_mgr_lib::config::Config;
+use mod_mgr_lib::settings::Settings;
 
 use crate::{
     tab_view::{self, TabButtonStyle, TabSwitcherStyle},
@@ -19,7 +15,7 @@ use crate::{
 };
 
 fn save_config(
-    config: RwSignal<Config>,
+    config: RwSignal<Settings>,
     general: GeneralSettingData,
     keyboard: KeyboardSettingData,
 ) {
@@ -29,14 +25,16 @@ fn save_config(
         config.game_executable_path = PathBuf::from(general.game_executable_path.get_untracked());
         config.saved_load_orders_path =
             PathBuf::from(general.saved_load_orders_path.get_untracked());
-        config.enable_story_log = general.enable_story_log.get_untracked();
+        config.game_story_log_enabled = general.enable_story_log.get_untracked();
         config.auto_add_missing_dependencies_on_export =
             general.auto_add_missing_deps.get_untracked();
-        config.show_missing_mod_warnings = !general.disable_missing_mod_warnings.get_untracked();
+        config.disable_missing_mod_warnings = general.disable_missing_mod_warnings.get_untracked();
         config.shift_focus_on_swap = general.shift_focus_on_swap.get_untracked();
         config.save_window_location = general.save_window_location.get_untracked();
-        config.enable_dx11_mode = general.enable_dx11_mode.get_untracked();
+        config.launch_dx11 = general.enable_dx11_mode.get_untracked();
         config.skip_launcher = general.skip_launcher.get_untracked();
+        config.check_for_updates = general.automatic_updates.get_untracked();
+        config.telemetry_disabled = general.telemetry_disabled.get_untracked();
 
         // TODO: keyboard shortcuts
 
@@ -70,7 +68,7 @@ impl Display for SettingTab {
 }
 
 pub fn settings_view(main_data: MainData) -> impl View {
-    let config = main_data.config.clone();
+    let config = main_data.settings.clone();
 
     let tabs = im::Vector::from_iter(
         [
@@ -137,7 +135,7 @@ pub fn settings_view(main_data: MainData) -> impl View {
 }
 
 fn settings_view_header(
-    config: RwSignal<Config>,
+    config: RwSignal<Settings>,
     general: GeneralSettingData,
     keyboard: KeyboardSettingData,
 ) -> impl View {
@@ -163,7 +161,7 @@ fn settings_view_header(
 }
 
 fn settings_view_footer(
-    config: RwSignal<Config>,
+    config: RwSignal<Settings>,
     general: GeneralSettingData,
     keyboard: KeyboardSettingData,
 ) -> impl View {
@@ -200,22 +198,26 @@ struct GeneralSettingData {
     save_window_location: RwSignal<bool>,
     enable_dx11_mode: RwSignal<bool>,
     skip_launcher: RwSignal<bool>,
+    telemetry_disabled: RwSignal<bool>,
+    automatic_updates: RwSignal<bool>,
 }
 impl GeneralSettingData {
-    fn from_config(config: &Config) -> GeneralSettingData {
+    fn from_config(config: &Settings) -> GeneralSettingData {
         GeneralSettingData {
             game_data_path: create_rw_signal(config.game_data_path_str().to_string()),
             game_executable_path: create_rw_signal(config.game_executable_path_str().to_string()),
             saved_load_orders_path: create_rw_signal(
                 config.saved_load_orders_path_str().to_string(),
             ),
-            enable_story_log: create_rw_signal(config.enable_story_log),
+            enable_story_log: create_rw_signal(config.game_story_log_enabled),
             auto_add_missing_deps: create_rw_signal(config.auto_add_missing_dependencies_on_export),
-            disable_missing_mod_warnings: create_rw_signal(!config.show_missing_mod_warnings),
+            disable_missing_mod_warnings: create_rw_signal(config.disable_missing_mod_warnings),
             shift_focus_on_swap: create_rw_signal(config.shift_focus_on_swap),
             save_window_location: create_rw_signal(config.save_window_location),
-            enable_dx11_mode: create_rw_signal(config.enable_dx11_mode),
+            enable_dx11_mode: create_rw_signal(config.launch_dx11),
             skip_launcher: create_rw_signal(config.skip_launcher),
+            telemetry_disabled: create_rw_signal(config.telemetry_disabled),
+            automatic_updates: create_rw_signal(config.check_for_updates),
         }
     }
 }
@@ -239,10 +241,12 @@ fn general_settings_view(g: GeneralSettingData) -> impl View {
                     inp("Game Executable Path", g.game_executable_path),
                     inp("Saved Load Orders Path", g.saved_load_orders_path),
                     chk("Enable Story Log", g.enable_story_log),
+                    chk("Always Disable Telemetry", g.telemetry_disabled),
                     chk(
                         "Auto Add Missing Dependencies When Exporting",
                         g.auto_add_missing_deps,
                     ),
+                    chk("Enable Automatic Updates", g.automatic_updates),
                     chk(
                         "Disable Missing Mod Warnings",
                         g.disable_missing_mod_warnings,
@@ -262,7 +266,7 @@ fn general_settings_view(g: GeneralSettingData) -> impl View {
 #[derive(Debug, Clone)]
 struct KeyboardSettingData {}
 impl KeyboardSettingData {
-    fn from_config(config: &Config) -> KeyboardSettingData {
+    fn from_config(config: &Settings) -> KeyboardSettingData {
         KeyboardSettingData {}
     }
 }
