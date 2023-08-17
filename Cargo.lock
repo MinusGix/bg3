@@ -1849,6 +1849,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "ls"
+version = "0.1.0"
+dependencies = [
+ "binrw",
+ "indexmap 2.0.0",
+ "lsf",
+ "lz4_flex",
+ "once_cell",
+ "regex",
+]
+
+[[package]]
 name = "lsf"
 version = "0.1.0"
 dependencies = [
