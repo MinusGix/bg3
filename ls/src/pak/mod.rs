@@ -1,7 +1,6 @@
 pub mod common;
 
 use std::{
-    fs::File,
     io::{BufRead, Read, Seek, SeekFrom},
     path::{Path, PathBuf},
 };
@@ -111,20 +110,6 @@ pub fn read_package(
     Err(PackageError::NotAPackage)
 }
 
-// FIXME: We currently ignore the streams it gives us!
-/// Opens files to any other parts. Most files are going to have no extra files to read from.  
-/// Note: unlike the C# version, this does not include `data` in the vec.
-fn open_files(path: &Path, num_parts: u32) -> std::io::Result<Vec<File>> {
-    let mut files = Vec::new();
-    for part in 1..num_parts {
-        let part_path = Package::make_part_filename(path, part);
-        let file = File::open(part_path)?;
-        files.push(file);
-    }
-
-    Ok(files)
-}
-
 pub fn read_package_v7(
     mut data: impl BufRead + Seek,
     path: &Path,
@@ -134,14 +119,13 @@ pub fn read_package_v7(
 
     let header: LSPKHeader7 = BinRead::read(&mut data)?;
 
-    let mut package = Package::new(PackageVersion::V7);
+    let mut package = Package::new(PackageVersion::V7, path.to_owned());
 
     if metadata_only {
         return Ok(package);
     }
 
-    open_files(path, header.num_parts)?;
-    for _ in 0..header.num_files {
+    for i in 0..header.num_files {
         let mut entry: FileEntry7 = BinRead::read(&mut data)?;
         // We follow how the C# version does this, where it just drops the header information by
         // just adding it to the entry if needed.
@@ -167,7 +151,7 @@ pub fn read_package_v10(
 
     let header: LSPKHeader10 = BinRead::read(&mut data)?;
 
-    let mut package = Package::new(PackageVersion::V10);
+    let mut package = Package::new(PackageVersion::V10, path.to_owned());
     package.metadata.flags = PackageFlags(header.flags.into());
     package.metadata.priority = header.priority;
 
@@ -175,7 +159,6 @@ pub fn read_package_v10(
         return Ok(package);
     }
 
-    open_files(path, header.num_parts.into())?;
     for _ in 0..header.num_files {
         let mut entry: FileEntry13 = BinRead::read(&mut data)?;
         if entry.archive_part == 0 {
@@ -204,15 +187,13 @@ pub fn read_package_v13(
         return Err(PackageError::UnsupportedVersion(header.version as i32));
     }
 
-    let mut package = Package::new(PackageVersion::V13);
+    let mut package = Package::new(PackageVersion::V13, path.to_owned());
     package.metadata.flags = PackageFlags(header.flags.into());
     package.metadata.priority = header.priority;
 
     if metadata_only {
         return Ok(package);
     }
-
-    open_files(path, header.num_parts.into())?;
 
     data.seek(SeekFrom::Start(header.file_list_offset.into()))?;
 
@@ -374,15 +355,13 @@ fn read_package_v15(
         return Err(PackageError::UnsupportedVersion(header.version as i32));
     }
 
-    let mut package = Package::new(PackageVersion::V15);
+    let mut package = Package::new(PackageVersion::V15, path.to_owned());
     package.metadata.flags = PackageFlags(header.flags.into());
     package.metadata.priority = header.priority;
 
     if metadata_only {
         return Ok(package);
     }
-
-    open_files(path, 1)?;
 
     data.seek(SeekFrom::Start(header.file_list_offset.into()))?;
 
@@ -402,15 +381,13 @@ fn read_package_v16(
         return Err(PackageError::UnsupportedVersion(header.version as i32));
     }
 
-    let mut package = Package::new(PackageVersion::V16);
+    let mut package = Package::new(PackageVersion::V16, path.to_owned());
     package.metadata.flags = PackageFlags(header.flags.into());
     package.metadata.priority = header.priority;
 
     if metadata_only {
         return Ok(package);
     }
-
-    open_files(path, header.num_parts.into())?;
 
     data.seek(SeekFrom::Start(header.file_list_offset.into()))?;
 
@@ -430,15 +407,13 @@ fn read_package_v18(
         return Err(PackageError::UnsupportedVersion(header.version as i32));
     }
 
-    let mut package = Package::new(PackageVersion::V18);
+    let mut package = Package::new(PackageVersion::V18, path.to_owned());
     package.metadata.flags = PackageFlags(header.flags.into());
     package.metadata.priority = header.priority;
 
     if metadata_only {
         return Ok(package);
     }
-
-    open_files(path, header.num_parts.into())?;
 
     data.seek(SeekFrom::Start(header.file_list_offset.into()))?;
 
@@ -498,28 +473,34 @@ pub struct Package {
     pub metadata: PackageMetadata,
     pub files: Vec<FileInfo>,
     pub version: PackageVersion,
+    pub path: PathBuf,
 }
 impl Package {
-    pub fn new(version: PackageVersion) -> Self {
+    pub fn new(version: PackageVersion, path: PathBuf) -> Self {
         Self {
             metadata: PackageMetadata::default(),
             files: Vec::new(),
             version,
+            path,
         }
     }
 
-    pub fn make_part_filename(path: &Path, part: u32) -> PathBuf {
-        // TODO: don't unwrap
-        let dir = path.parent().unwrap();
-        let base_name = dir.file_stem().unwrap();
-        let extension = dir.extension().unwrap();
-
-        let mut full_name = base_name.to_os_string();
-        full_name.push("_");
-        full_name.push(part.to_string());
-        full_name.push(".");
-        full_name.push(extension);
-
-        dir.join(full_name)
+    pub fn make_part_filename(&self, part: u32) -> PathBuf {
+        make_part_filename(&self.path, part)
     }
+}
+
+fn make_part_filename(path: &Path, part: u32) -> PathBuf {
+    // TODO: don't unwrap
+    let dir = path.parent().unwrap();
+    let base_name = dir.file_stem().unwrap();
+    let extension = dir.extension().unwrap();
+
+    let mut full_name = base_name.to_os_string();
+    full_name.push("_");
+    full_name.push(part.to_string());
+    full_name.push(".");
+    full_name.push(extension);
+
+    dir.join(full_name)
 }

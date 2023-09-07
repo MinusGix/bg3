@@ -9,7 +9,10 @@ pub mod ui_mod_data;
 pub mod util;
 pub mod view_util;
 
-use std::path::{Path, PathBuf};
+use std::{
+    borrow::Cow,
+    path::{Path, PathBuf},
+};
 
 use clap::Parser;
 use floem::{
@@ -18,11 +21,15 @@ use floem::{
 };
 use main_view::{app_view, StartupStage};
 use mod_mgr_lib::{
+    mod_data::ModData,
     settings::{ScriptExtenderSettings, Settings},
     util::divinity_registry_helper::{self, get_game_install_path},
     BG3_STEAM_ID,
 };
-use resources::default_paths;
+use resources::{
+    default_paths,
+    ignored_mods::{ignored_mods_iter, IGNORE_BUILTIN_PATH, IGNORE_DEPENDENCIES},
+};
 use ui_mod_data::UIModData;
 use util::space_replace;
 
@@ -45,7 +52,7 @@ fn main() {
 
     // TODO: load settings from a settings file
     let settings_path = PathBuf::from("Data/settings.json");
-    let settings = load_settings(&settings_path).expect("Failed to parse settingsuration file");
+    let settings = load_settings(&settings_path).expect("Failed to parse settings file");
 
     // TODO: window title
     // TODO: on linux systems, alert that the window should be floating by default for tiling window managers. Or at least do that for settings/about
@@ -81,7 +88,7 @@ fn load_settings(path: &Path) -> serde_json::Result<Settings> {
         serde_json::from_str(&content)
     } else {
         // The file doesn't exist so we'll just use the default settingsuration.
-        eprintln!("There was no settingsuration file at: {path:?}, using default settingsuration.");
+        eprintln!("There was no settings file at: {path:?}, using default settings.");
         Ok(Settings::default())
     }
 }
@@ -96,12 +103,16 @@ pub struct MainData {
     pub pathway: RwSignal<PathwayData>,
     // TODO: is this ever initialized?
     pub extender_settings: RwSignal<Option<ScriptExtenderSettings>>,
-    pub mods: im::Vector<UIModData>,
+    pub mods: RwSignal<im::Vector<UIModData>>,
+
+    pub ignore_builtin_path: RwSignal<im::Vector<Cow<'static, str>>>,
+    pub ignored_mods: RwSignal<im::Vector<UIModData>>,
+    pub ignored_dependency_mods: RwSignal<im::Vector<UIModData>>,
 }
 impl MainData {
     // Roughly equivalent to C#'s LoadSettings, though it has the settings/settings loaded outside it.
     pub fn new(args: Args, settings: Settings) -> MainData {
-        // TODO: loadappsettings?
+        // TODO: App features?
         let settings = create_rw_signal(settings.clone());
 
         let (game_data_path, doc_path_override) = settings.with_untracked(|settings| {
@@ -129,6 +140,28 @@ impl MainData {
 
         let extender_settings = create_rw_signal(None);
 
+        let mods = create_rw_signal(im::Vector::new());
+
+        // We don't load ignored mods from a path because it doesn't appear to get modified.
+        let ignore_builtin_path = create_rw_signal(im::Vector::from_iter(
+            IGNORE_BUILTIN_PATH.iter().copied().map(Cow::Borrowed),
+        ));
+
+        let ignored_mods =
+            im::Vector::from_iter(ignored_mods_iter().map(|m| UIModData::new(true, m)));
+        let mut ignored_dependency_mods = im::Vector::new();
+        for dep_uuid in IGNORE_DEPENDENCIES {
+            let mod_d = ignored_mods
+                .iter()
+                .find(|m| m.data.uuid.eq_ignore_ascii_case(&dep_uuid));
+            if let Some(mod_d) = mod_d {
+                ignored_dependency_mods.push_back(mod_d.clone());
+            }
+        }
+
+        let ignored_mods = create_rw_signal(ignored_mods);
+        let ignored_dependency_mods = create_rw_signal(ignored_dependency_mods);
+
         // TODO: log enabled listener
         // TODO: theme change listener
         // TODO: extender settings enable extension listener
@@ -146,7 +179,10 @@ impl MainData {
             startup_stage,
             pathway: pathway_data,
             extender_settings,
-            mods: im::Vector::new(),
+            mods,
+            ignore_builtin_path,
+            ignored_mods,
+            ignored_dependency_mods,
         }
     }
 
@@ -459,6 +495,110 @@ impl MainData {
             settings.game_launch_params = String::new();
         })
     }
+
+    /// Find a mod, running the callback on it.
+    pub fn with_mod<T>(&self, uuid: &str, cb: impl FnOnce(Option<&UIModData>) -> T) -> T {
+        self.mods.with(|mods| {
+            let mod_d = mods.iter().find(|m| m.data.uuid.eq_ignore_ascii_case(uuid));
+            cb(mod_d)
+        })
+    }
+
+    pub fn set_loaded_mods(&mut self, new_mods: impl Iterator<Item = UIModData>) {
+        self.mods.update(|mods| {
+            mods.clear();
+
+            for mod_data in new_mods {
+                if mod_data.data.is_larian_mod {
+                    // TODO: could this cause an issue due to updating within an update call?
+                    self.ignored_mods.update(|ignored_mods| {
+                        let existing_idx = ignored_mods
+                            .iter()
+                            .position(|m| m.data.uuid == mod_data.data.uuid);
+                        if let Some(idx) = existing_idx {
+                            if ignored_mods[idx] == mod_data {
+                                ignored_mods.remove(idx);
+                            }
+                        }
+
+                        ignored_mods.push_back(mod_data.clone());
+                    });
+                }
+
+                let m = mods.iter().find(|m| &m.data.uuid == &mod_data.data.uuid);
+                if let Some(m) = m {
+                    if u64::from(mod_data.data.version) > u64::from(m.data.version) {
+                        mods.push_back(mod_data);
+                        eprintln!("Updated mod data from pak");
+                    }
+                } else {
+                    mods.push_back(mod_data.clone());
+                }
+            }
+        });
+    }
+
+    pub fn merge_mod_lists(
+        &self,
+        final_mods: &mut im::Vector<UIModData>,
+        new_mods: impl Iterator<Item = UIModData>,
+    ) {
+        for mod_data in new_mods {
+            let existing_idx = final_mods
+                .iter()
+                .position(|x| x.data.uuid == mod_data.data.uuid);
+            if let Some(idx) = existing_idx {
+                if u64::from(final_mods[idx].data.version) < u64::from(mod_data.data.version) {
+                    final_mods.remove(idx);
+                    final_mods.push_back(mod_data);
+                }
+            } else {
+                final_mods.push_back(mod_data);
+            }
+        }
+    }
+
+    pub fn load_workshop_mods(&self) {
+        todo!()
+    }
+
+    pub fn check_for_mod_updates(&self) {
+        todo!()
+    }
+
+    pub fn load_mods(&self) {
+        todo!()
+        // enum LoadModCmd {
+        //     SetProgress(Cow<'static, str>),
+        // }
+
+        // let mut final_mods = im::Vector::new();
+        // let mut mod_pak_data = im::Vector::new();
+        // let mut projects = im::Vector::new();
+        // let mut base_mods = im::Vector::new();
+
+        // // We send data over a channel to the main thread to be processed.
+        // let (tx, rx) = std::sync::mpsc::channel();
+
+        // let game_data_path = self.settings.with_untracked(|s| s.game_data_path.clone());
+
+        // let game_dir_found = !game_data_path.as_os_str().is_empty() && game_data_path.is_dir();
+
+        // if game_dir_found {
+        //     tx.send(LoadModCmd::SetProgress(Cow::Borrowed(
+        //         "Loading base game mods from data folder...",
+        //     )));
+        //     eprintln!("GameDataPath is {game_data_path:?}");
+
+        //     // TODO: they have a timeout
+        //     std::thread::spawn(|| {
+        //         let mut base_mods = im::Vector::new();
+
+        //         let mod_resources = ModResources::default();
+        //         let mod_helper = ModPathVisitor::new(mod_resources);
+        //     });
+        // }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -497,6 +637,16 @@ impl PathwayData {
                 settings.game_data_path.clone(),
             )
         });
+
+        if cfg!(target_os = "linux") {
+            return PathwayData {
+                install_path: Default::default(),
+                larian_documents_folder: Default::default(),
+                documents_mods_path: Default::default(),
+                documents_gm_campaigns_path: Default::default(),
+                documents_profiles_path: Default::default(),
+            };
+        }
 
         // TODO: some of this should be windows only
         let mut documents_folder = std::env::var_os("LOCALAPPDATA")

@@ -4,19 +4,17 @@
 use std::{borrow::Cow, path::PathBuf};
 
 use mod_mgr_lib::{
-    mod_data::{DivinityModDependencyData, ModData, ModVersion},
+    mod_data::{DivinityModDependencyData, ModData},
     MAIN_CAMPAIGN_UUID,
 };
 
 // TODO: this has various selection/active, workshop, etc fields on it.
 // TODO: I think various pieces of these could be put into core.
-#[derive(Debug, Clone)]
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct UIModData {
     pub data: ModData,
-    pub idx: usize,
-    pub mod_type: String,
+    // pub idx: usize,
     pub modes: Vec<String>,
-    pub targets: String,
     pub last_updated: u64,
     pub extender_status: DivinityExtenderModStatus,
     pub current_extender_version: Option<u32>,
@@ -27,6 +25,19 @@ pub struct UIModData {
     pub is_active: bool,
 }
 impl UIModData {
+    pub fn new(is_base_game_mod: bool, mut data: ModData) -> UIModData {
+        if is_base_game_mod {
+            data.is_larian_mod = true;
+        }
+
+        // TODO: it normally registers open workshop links for non base game mods
+
+        UIModData {
+            data,
+            ..Default::default()
+        }
+    }
+
     pub fn output_pak_name(&self) -> PathBuf {
         todo!()
     }
@@ -58,10 +69,17 @@ impl UIModData {
             }
         }
     }
+
+    pub fn can_add_to_load_order(&self) -> bool {
+        self.data.mod_type != "Adventure"
+            && !self.data.is_larian_mod
+            && (!self.data.is_force_loaded || self.data.is_force_loaded_merged_mod)
+    }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub enum DivinityExtenderModStatus {
+    #[default]
     None,
     Supports,
     Required,
@@ -115,7 +133,7 @@ impl DivinityExtenderModStatus {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct ScriptExtenderConfig {
     pub required_extension_version: Option<u32>,
     pub feature_flags: Vec<String>,

@@ -160,8 +160,12 @@ pub struct Metadata {
 }
 
 #[derive(Debug, Clone, Copy, BinRead, BinWrite)]
-pub struct CompressionFlags(u8);
+pub struct CompressionFlags(pub u8);
 impl CompressionFlags {
+    pub fn new(method: CompressionMethod, level: CompressionLevel) -> CompressionFlags {
+        CompressionFlags((method as u8) | (level as u8))
+    }
+
     pub fn method(&self) -> CompressionMethod {
         match self.0 & 0x0f {
             0 => CompressionMethod::None,
@@ -185,6 +189,7 @@ impl CompressionFlags {
 
 // TODO: feature flags?
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
 pub enum CompressionMethod {
     None = 0,
     Zlib = 1,
@@ -192,6 +197,7 @@ pub enum CompressionMethod {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[repr(u8)]
 pub enum CompressionLevel {
     FastCompress = 0,
     DefaultCompress = 1,

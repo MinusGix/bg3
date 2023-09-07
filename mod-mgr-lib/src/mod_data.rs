@@ -1,6 +1,7 @@
 use std::path::{Path, PathBuf};
 
-#[derive(Debug, Clone, PartialEq)]
+// TODO: are the default values the same as the C# versions defaults?
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct ModData {
     pub file_path: PathBuf,
     // TODO: uuids are constant size
@@ -10,6 +11,9 @@ pub struct ModData {
     pub description: String,
     pub author: String,
     pub md5: String,
+
+    pub mod_type: String,
+    pub targets: String,
 
     pub version: ModVersion,
     pub header_version: ModVersion,
@@ -45,6 +49,31 @@ pub struct ModData {
 }
 
 impl ModData {
+    pub fn new(
+        name: impl ToString,
+        uuid: impl ToString,
+        folder: impl ToString,
+        version: u64,
+        typ: impl ToString,
+        targets: impl ToString,
+        author: impl ToString,
+        description: impl ToString,
+        tags: impl ToString,
+    ) -> ModData {
+        ModData {
+            uuid: uuid.to_string(),
+            name: name.to_string(),
+            folder: folder.to_string(),
+            description: description.to_string(),
+            author: author.to_string(),
+            version: ModVersion::from(version),
+            mod_type: typ.to_string(),
+            targets: targets.to_string(),
+            tags: vec![tags.to_string()],
+            ..Default::default()
+        }
+    }
+
     // TODO(minor): don't unwrap
     pub fn filename(&self) -> String {
         self.file_path
@@ -149,7 +178,8 @@ impl ModData {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+// C#'s DivinityModVersion2
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct ModVersion {
     pub major: u8,
     pub minor: u8,
@@ -191,8 +221,9 @@ impl std::fmt::Display for ModVersion {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub enum Visibility {
+    #[default]
     Visible,
     Collapsed,
 }
@@ -210,7 +241,7 @@ fn change_extension(p: &mut String, ext: &str) -> bool {
     true
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DivinityModDependencyData {
     pub uuid: String,
     pub name: String,

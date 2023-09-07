@@ -68,6 +68,11 @@ pub const DELETION_OFFSET: u64 = 0xdeadbeefdeadbeef;
 #[derive(Debug, Clone, PartialEq)]
 pub struct PackagedFileInfo {
     pub name: String,
+    /// The part that this belongs to.  
+    ///  
+    /// 0 is just the base file.
+    /// Use `Package::make_part_filename` to get the filename for `part > 0`.
+    pub part: u32,
 
     pub archive_part: u32,
     pub crc: u32,
@@ -90,6 +95,7 @@ impl PackagedFileInfo {
 
         Ok(PackagedFileInfo {
             name,
+            part: entry.archive_part,
             offset_in_file: entry.offset_in_file.into(),
             size_on_disk: entry.size_on_disk.into(),
             uncompressed_size: entry.uncompressed_size.into(),
@@ -107,6 +113,7 @@ impl PackagedFileInfo {
 
         Ok(PackagedFileInfo {
             name,
+            part: entry.archive_part,
             offset_in_file: entry.offset_in_file.into(),
             size_on_disk: entry.size_on_disk.into(),
             uncompressed_size: entry.uncompressed_size.into(),
@@ -124,6 +131,7 @@ impl PackagedFileInfo {
 
         Ok(PackagedFileInfo {
             name,
+            part: entry.archive_part.into(),
             offset_in_file: (entry.offset_in_file1 as u64)
                 | ((entry.offset_in_file2 as u64) << 32u64),
             size_on_disk: entry.size_on_disk.into(),
@@ -155,6 +163,7 @@ impl PackagedFileInfo {
 
         PackagedFileInfo {
             name: name_to_string(&entry.name),
+            part: entry.archive_part,
             offset_in_file: entry.offset_in_file.into(),
             size_on_disk: entry.size_on_disk.into(),
             uncompressed_size: entry.uncompressed_size.into(),
@@ -241,6 +250,22 @@ impl PackagedFileInfo {
         if self.is_deletion() {
             return Err(PackagedFileContentError::IsDeleted);
         }
+
+        // TODO: if it has an uncompressed stream, just return that
+
+        if CompressionMethod::None as u32 == (self.flags & 0x0f) && !self.solid {
+            // Use direct stream read for non-compressed files
+            // TODO: it returns uncompresedpackagedfilestream
+        }
+
+        if self.size_on_disk > 0x7fffffff {
+            panic!("TODO: support large files");
+        }
+
+        let mut compressed = vec![0; self.size_on_disk.try_into().unwrap()];
+
+        // TODO: seek in package stream to offset in file
+        // TODO: package stream read size on disk
 
         todo!()
     }
